@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../app/location.dart';
 import '../app/workspace_controller.dart';
 import '../core/geo/geo.dart';
 import '../core/map/projection.dart';
@@ -25,9 +26,11 @@ class GeoLayer {
 /// and the locate/attach actions. The persisted half (places, sidebar, filter,
 /// renderer, grid, cursor) lives on the shared record.
 class MapSession extends ChangeNotifier {
-  MapSession(this.controller);
+  MapSession(this.controller, {LocationQuery? locations})
+      : _locations = locations ?? const GeolocatorQuery();
 
   final WorkspaceController controller;
+  final LocationQuery _locations;
 
   final ToolStatus status = ToolStatus('Click the map to drop a pin.');
 
@@ -208,26 +211,22 @@ class MapSession extends ChangeNotifier {
     setStatus('Locating…');
     notifyListeners();
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await _locations.serviceEnabled();
       if (!serviceEnabled) {
         setStatus('Location services are turned off on this device.',
             error: true);
         return;
       }
-      var permission = await Geolocator.checkPermission();
+      var permission = await _locations.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        permission = await _locations.requestPermission();
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         setStatus('Location permission was denied.', error: true);
         return;
       }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-        ),
-      );
+      final position = await _locations.currentPosition();
       setCenter(position.latitude, position.longitude);
       flyTo(position.latitude, position.longitude);
       setStatus(

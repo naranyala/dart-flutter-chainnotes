@@ -37,7 +37,6 @@ dependencies:
   path_provider: ^2.1.6
   file_selector: ^1.1.0
   http: ^1.6.0
-  image: ^4.10.1
   pdf: ^3.13.1
   pdfx: ^2.11.0
   geolocator: ^14.1.1

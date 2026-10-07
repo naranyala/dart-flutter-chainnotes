@@ -171,6 +171,61 @@ void main() {
       persistence.dispose();
     });
 
+    test('hydrate sets native mode on a successful restore', () {
+      final persistence = build();
+      controller.view = 'editor';
+      persistence.flush();
+
+      final boot = normalizeWorkspace({
+        'savedAt': 1,
+        'view': 'menu',
+      });
+      final applied = <WorkspaceRecord>[];
+      final hydrating = WorkspacePersistence(
+        bridge: WorkspaceStoreBridge(
+          cachePath: cachePath,
+          durablePath: durablePath,
+        ),
+        snapshot: controller.snapshot,
+        apply: applied.add,
+      );
+      expect(hydrating.mode, PersistenceMode.none);
+      expect(hydrating.hydrate(boot), isTrue);
+      expect(hydrating.mode, PersistenceMode.native);
+      expect(
+        saveLabelFor(hydrating.mode),
+        'saved to disk',
+      );
+      hydrating.dispose();
+      persistence.dispose();
+    });
+
+    test('hydrate with nothing to restore leaves mode none', () {
+      final persistence = build();
+      expect(File(durablePath).existsSync(), isFalse);
+      expect(
+        persistence.hydrate(normalizeWorkspace(null)),
+        isFalse,
+      );
+      expect(persistence.mode, PersistenceMode.none);
+      expect(saveLabelFor(persistence.mode), 'not saved');
+      expect(persistence.report, isNull);
+      persistence.dispose();
+    });
+
+    test('hydrate with a damaged file leaves mode none and reports', () {
+      Directory(durablePath).parent.createSync(recursive: true);
+      File(durablePath).writeAsStringSync('{ broken');
+      final persistence = build();
+      expect(
+        persistence.hydrate(normalizeWorkspace(null)),
+        isFalse,
+      );
+      expect(persistence.mode, PersistenceMode.none);
+      expect(saveLabelFor(persistence.mode), 'not saved');
+      expect(persistence.report?.code, 'INVALID_CONTENT');
+      persistence.dispose();
+    });
     test('hydrate applies the durable copy over an older boot snapshot', () {
       final persistence = build();
       controller.view = 'editor';
@@ -212,6 +267,18 @@ void main() {
       expect(saveLabelFor(PersistenceMode.native), 'saved to disk');
       expect(saveLabelFor(PersistenceMode.local), 'auto-saved');
       expect(saveLabelFor(PersistenceMode.none), 'not saved');
+    });
+
+    test('dispose flushes a pending save instead of dropping it', () {
+      final persistence = build();
+      controller.view = 'toc';
+      persistence.schedule();
+      expect(persistence.hasPendingSave, isTrue);
+      // Close the window inside the debounce window: no waiting.
+      persistence.dispose();
+      expect(File(durablePath).existsSync(), isTrue);
+      final durable = jsonDecode(File(durablePath).readAsStringSync()) as Map;
+      expect(durable['view'], 'toc');
     });
   });
 }

@@ -213,6 +213,7 @@ class WorkspacePersistence {
     apply(chosen);
     _lastDurablePayload = serializeWorkspace(chosen);
     report = null;
+    mode = PersistenceMode.native;
     onChanged?.call();
     return true;
   }
@@ -252,7 +253,11 @@ class WorkspacePersistence {
   }
 
   void dispose() {
-    _timer?.cancel();
+    if (_timer?.isActive ?? false) {
+      flush();
+    } else {
+      _timer?.cancel();
+    }
   }
 }
 

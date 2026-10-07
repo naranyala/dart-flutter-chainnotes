@@ -42,24 +42,25 @@ memory (LRU, 512 tiles)  →  disk (<cache>/tiles/{z}/{x}/{y}.png)  →  network
   **512 tiles**; the oldest is disposed when the cap is reached, so a long pan
   session cannot grow without bound.
 - **Disk.** `writeAsBytes(..., flush: true)` under the application cache
-  directory, created on demand. A read-only cache directory is not fatal — it
-  falls through to the network.
+  directory, created on demand, capped at **2000 files / 64 MiB** with
+  oldest-first eviction (`pickTileEvictions` in
+  `lib/core/map/tile_policy.dart`). A read-only cache directory is not fatal —
+  it falls through to the network.
 - **In-flight.** A `Future` per pending key, so panning across the same tile
   twice issues one request, not two.
-
-There is **no cap on the disk cache** and no eviction of old tiles from it —
-that is a real gap against the host's own guidance and is tracked as
-[TODO-008](../TODOS.md).
 
 ## Network behaviour
 
 - One `http.Client`, created by `TileCache` and closed by `dispose()`.
-- A non-200 response is a miss, not an error: the tile simply does not
-  appear.
+- At most **4 concurrent** fetches with **≥100 ms spacing** between starts
+  (`TileRequestGate`); excess tiles are a miss, not a queue.
+- A 429/5xx response triggers exponential backoff (1 s, doubling, max 30 s):
+  cache still serves, network does not. Other non-200 responses are a miss.
 - Any exception (offline, DNS failure, proxy refusal) is caught and treated as
-  a miss. **No retry, no backoff, no user-visible error** — the map renders
-  what it has.
-- Failed tiles are **not** remembered, so re-entering an area retries them.
+  a miss with no backoff. **No user-visible error** — the map renders what it
+  has.
+- Failed tiles are **not** remembered, so re-entering an area retries them
+  once backoff expires.
 
 ## Position on the tile usage policy
 
@@ -71,9 +72,9 @@ attribution. Against that, honestly:
 | --- | --- |
 | Identifying user agent | **Met** — the constant above, sent on every request |
 | Attribution on the map | **Met** — `© OpenStreetMap contributors` drawn in the viewport |
-| Cache responsibly | **Partly** — memory is bounded at 512, disk is unbounded (TODO-008) |
+| Cache responsibly | **Met** — memory bounded at 512, disk at 2000 files / 64 MiB with oldest-first eviction |
 | No bulk downloading | **Met** — the app fetches only tiles it renders, at the user's pan and zoom |
-| Limit concurrent requests | **Not guaranteed** — each visible tile fetches independently with no global concurrency cap; only per-tile in-flight dedup (part of TODO-008) |
+| Limit concurrent requests | **Met** — max 4 in flight, ≥100 ms spacing, backoff on 429/5xx |
 
 This is an acceptable position for a single user panning a desktop map, and a
 poor one for anything that sweeps zoom levels or pre-fetches. If you add
@@ -91,9 +92,9 @@ policy fits), which is a one-line change to the URL constant.
 or a VPN that rewrites traffic, tiles are the first thing to fail, and the app
 will show an empty map rather than an error.
 
-**Tiles appear, then stop after a while.** A rate-limit response is a miss like
-any other non-200: tiles silently stop appearing. There is no back-off or
-message for this yet (TODO-008).
+**Tiles appear, then stop after a while.** A 429/5xx puts the network client
+into backoff (cache still serves); other non-200 responses are a silent miss.
+Backoff clears on the next success.
 
 **The disk cache keeps growing.** Expected: `<cache>/tiles` has no eviction.
 Delete the directory to reclaim the space.

@@ -5,7 +5,7 @@ layer. Nothing below the smoke test needs a display, a network, or a real
 document on disk.
 
 ```sh
-flutter test                                          # all seven suites, 67 tests
+flutter test                                          # all suites, 107 functional + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # must stay clean alongside
@@ -14,12 +14,15 @@ flutter analyze                                       # must stay clean alongsid
 | Suite | Tests | What it proves |
 | --- | ---: | --- |
 | `test/workspace_test.dart` | 14 | The schema normalizes corrupt input into a safe record and round-trips |
-| `test/persistence_test.dart` | 13 | The debounce, the write order, the boot merge rules, and the save modes |
+| `test/persistence_test.dart` | 17 | The debounce, the write order, the boot merge rules, save modes, dispose-flush, and the post-hydrate mode |
 | `test/workspace_store_test.dart` | 13 | The durable file: atomic rename, 4 MiB cap checked before reading, result codes |
 | `test/boot_composition_test.dart` | 3 | The composition root wires the *boot cache* — not a fresh snapshot — into persistence |
 | `test/metrics_test.dart` | 12 | The Welford engine: precision, rejected values never disturb state |
 | `test/bridge_test.dart` | 11 | The request parser, the success payload, the error vocabulary and envelope |
-| `test/app_smoke_test.dart` | 1 | The shell mounts and walks all six views without overflow or exception |
+| `test/tile_policy_test.dart` | 9 | The tile gate (concurrency, spacing, backoff) and oldest-first disk eviction |
+| `test/tools_interaction_test.dart` | 12 | TOC declare/reorder/undo/filter, editor binding, PDF attach, outline transfers, places, lightbox stepping |
+| `test/package_integration_test.dart` | 14 | Picker flows via fakes, locate denied/disabled/fix, pdf-package rendering, outline parsing, backend-seam open paths |
+| `test/app_smoke_test.dart` | 2 | The shell mounts and walks all six views; the status bar menu button returns to the menu |
 
 The running theme is that every layer is testable **without the one above
 it**: the core suites need no widgets, the widget test needs no network or
@@ -100,12 +103,11 @@ the `DropdownButtonFormField` inside a `Column` width bug on the first run
 
 | Gap | Consequence |
 | --- | --- |
-| No interaction tests per tool | Declaring a section, attaching a link, and saving a pin are only covered indirectly, if at all — [TODO-007](../TODOS.md) |
-| No real-binary run on a display | `flutter build linux --debug` succeeds, but the bundled app has never been launched — [TODO-006](../TODOS.md) |
-| No continuous integration | Nothing runs `flutter analyze` and `flutter test` on push — [TODO-005](../TODOS.md) |
-| No document fixtures | `PdfSession` and `ImageSession` are exercised only by the smoke test, never with a real PDF or directory |
+| Interaction coverage is core-flows only | Picker, locate, and backend-seam paths are covered; picker cancel paths are thin — [TODO-007](../TODOS.md) |
+| No native PDF rendering here | `pdfx` ships no Linux backend, so page rendering is backend-seam tested only, never with a real renderer — [TODO-017](../TODOS.md) |
+| No observed green CI run | The workflow exists but has never been seen green on GitHub — [TODO-005](../TODOS.md) |
 | No network, no tiles | `TileCache` is not exercised over HTTP; its failure paths are unit-tested only |
-| No power-loss test for the store | The rename sequence is asserted structurally, not under `fsync` conditions — [TODO-009](../TODOS.md) |
+| No power-loss test for the store | The rename sequence is asserted structurally, not under `fsync` conditions — power-loss behaviour is stated, not proven |
 
 ## Keeping documents honest
 

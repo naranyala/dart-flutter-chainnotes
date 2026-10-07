@@ -19,6 +19,7 @@ import 'ui/menu_view.dart';
 import 'ui/pdf_view.dart';
 import 'ui/shell.dart';
 import 'ui/toc_view.dart';
+import 'ui/widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -147,6 +148,19 @@ class WorkspaceApp extends StatefulWidget {
 }
 
 class _WorkspaceAppState extends State<WorkspaceApp> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onPause: _flushWorkspace,
+      onHide: _flushWorkspace,
+      onDetach: _flushWorkspace,
+    );
+  }
+
+  void _flushWorkspace() => widget.controller.flushNow();
   Widget get _footer => _StatusBar(
         controller: widget.controller,
         signal: widget.persistenceSignal,
@@ -195,6 +209,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     widget.controller.flushNow();
     widget.persistence.dispose();
     widget.tiles.dispose();
@@ -249,6 +264,7 @@ class _StatusBar extends StatelessWidget {
                 color: WorkspaceColors.textMuted,
               ),
             ),
+            MenuGridButton(controller: controller),
           ],
         );
       },

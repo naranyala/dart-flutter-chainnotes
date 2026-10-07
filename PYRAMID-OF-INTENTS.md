@@ -43,9 +43,11 @@ not isolated screens. One record owns the outline and its drafts, the last view,
 each tool's persisted session, and the cross-tool links (an outline item
 pointing at a PDF page, an attached image, or a saved place).
 
-The **Google Maps viewer is deliberately not ported.** Its section of the record
-is kept so a workspace exported from the original still normalizes cleanly, and
-whether to build it is an open product decision, not an oversight.
+The **Google Maps viewer has no view, by decision.** The `googleMap` section of
+the record is normalized and persisted purely so a workspace exported elsewhere
+loads without losing data. Building a viewer was rejected: the only known tile
+source for it is an unlicensed endpoint. This is a closed decision, not an
+oversight (TODO-013 closed).
 
 **Success looks like:** a contributor can point at one store that owns the
 cross-tool state, and a user moves from outline to source document and back
@@ -64,8 +66,17 @@ this boundary without saying so.
 The workspace is written through one path: a 250 ms debounce, a synchronous
 boot-cache write first and the durable file second, temp file + rename, a 4 MiB
 cap checked before reading, and a merge on boot in which the durable copy wins
-unless it is strictly older than the boot cache. State must also be flushed when
-the app stops, not only when a timer happens to fire.
+unless it is strictly older than the boot cache. A pending debounce is flushed
+— not dropped — when the app hides, pauses, detaches, or disposes
+(`AppLifecycleListener` → `flushNow()`, and `dispose()` flushes instead of
+cancelling). A successful boot restore sets the save mode to `native`, so the
+footer reads `saved to disk` rather than `not saved`.
+
+Power-loss limit, stated not implied: the file is flushed but NOT fsynced
+before the rename, and the parent directory is NOT fsynced after it
+(`dart:io` exposes neither). Crash-during-write is safe (old or new file,
+never half-written); power loss in the rename window may still lose the last
+write.
 
 **Success looks like:** type a sentence, close the window, reopen, and the
 sentence is there; corrupt either file and the app still starts with a readable
@@ -76,8 +87,9 @@ explanation instead of an empty crash.
 The Welford metrics engine, the bridge envelope (`[[number, …]]`, comma or
 newline separators), and the error-code vocabulary (`INVALID_REQUEST`,
 `EMPTY_INPUT`, `INVALID_VALUE`, `ENGINE_FAILED`, `BUFFER_TOO_SMALL`,
-`OUT_OF_MEMORY`) are ported as tested library code. This project ships no UI
-for them; that is a scope statement to be made deliberately, not discovered.
+`OUT_OF_MEMORY`) are tested library code with **no production UI caller, by
+decision** (TODO-011 closed). The README states this plainly so no reader
+mistakes the engine for a product feature.
 
 ### I1.5 — Approachable as a starter
 
@@ -87,12 +99,19 @@ documentation that matches the code that actually runs.
 ### I1.6 — Map Explorer whose network access is one seam
 
 Raster tiles come from OpenStreetMap behind `lib/core/map/tile_source.dart`
-with a declared user agent, a memory LRU and a disk cache; location comes from
-`geolocator` behind the platform permission entries; GeoJSON and place imports
-are parsed in core. There is no page-side fetcher to fence off — the WebView
-problem this intent was written against does not exist here — but the host,
-rate behavior, and cache bounds must stay visible in one file rather than
+(`TileCache`) with a declared user agent, an explicit host list
+(`TileCache.tileHosts`), a 512-tile memory LRU, and a disk cache capped at
+2000 files / 64 MiB with oldest-first eviction; at most 4 concurrent fetches
+with ≥100 ms spacing and exponential backoff on 429/5xx
+(`lib/core/map/tile_policy.dart`, `TileRequestGate`). Location comes from
+`geolocator` behind the platform permission entries (Android, iOS, and macOS
+all declare theirs); GeoJSON and place imports are parsed in core. The host,
+rate behavior, and cache bounds stay visible in these two files rather than
 spreading through the views.
+
+Scope, decided: one basemap with a colour filter (no switcher) and no place
+search — a geocoder would be a second network client behind a new seam
+(TODO-014 closed; the README states it).
 
 **Success looks like:** a user pans, bookmarks, locates, and reloads with the
 bookmarks and last position intact, with attribution on screen and the tile
@@ -174,65 +193,123 @@ changeable independently behind small contracts.
 ## Current state snapshot
 
 Verified against the tree and a full run on 2026-10-07 — `flutter analyze`
-(no issues), `flutter test` (67 tests), `flutter build linux --debug` — rather
-than against these entries. Every claim below was checked by running it.
+(no issues), `flutter test` (115/115: 107 functional + 8 docs guard),
+`flutter build linux --debug`, `flutter build linux --release`,
+`flutter build web --release`, `tool/smoke.sh --build --timeout=10`
+(Smoke OK, exit 124 = stayed up) — rather than against these entries. Every
+claim below was checked by running it.
 
 Already present and working:
 
 - Six tools mounted in an `IndexedStack` with a shared status bar, all built
   from one composition root in `lib/main.dart` — **I1.1**, **I2.1**.
 - Pure-Dart core: schema + normalizer, 4 MiB atomic store, debounce/merge
-  persistence, Welford metrics, bridge envelope codec, Web-Mercator
-  projection, OSM tile fetch/cache, best-effort PDF outline parser, and an
+  persistence with dispose-flush and post-hydrate `native` mode, Welford
+  metrics, bridge envelope codec, Web-Mercator projection, bounded OSM tile
+  fetch/cache with gate + eviction, best-effort PDF outline parser, and an
   outline-to-PDF writer — **I1.2**, **I4.2**.
 - Boot wiring that compares two on-disk timestamps: `readBootCache` produces
   both the controller's initial state and the boot half of the merge, and
   `startPersistence` hydrates from it — **I1.3**. Locked by
   `test/boot_composition_test.dart`, which fails against the previous wiring.
-- 67 tests across metrics, bridge, store, normalizer, persistence merge,
-  boot composition, and a widget smoke test that mounts the shell and walks
-  every view — **I4.1**.
+- Lifecycle flush: `AppLifecycleListener` (pause/hide/detach) calls
+  `flushNow()`, and `WorkspacePersistence.dispose()` flushes a pending
+  debounce instead of cancelling it — **I1.3**, **I2.1**. Locked by the
+  dispose-flush test in `test/persistence_test.dart` (TODO-003 closed).
+- Post-hydrate save mode: a successful restore sets `native`, so the footer
+  reads `saved to disk`; empty and damaged durable files leave `none` with
+  (for damaged) an `INVALID_CONTENT` report — **I2.3**. Locked by three tests
+  in `test/persistence_test.dart` (TODO-004 closed).
+- 114 tests: metrics (12), bridge (11), store (13), normalizer (14),
+  persistence merge + modes (17), boot composition (3), tile gate + eviction
+  (9), tool interactions (12), third-party seams (14), shell smoke (1), docs
+  guard (8) — **I4.1**.
+- Third-party seams with fakes: `FakeFileService` picker flows, `LocationQuery`
+  over `geolocator` (denied/disabled/fix tested), `PdfOpener` over `pdfx`
+  (unsupported-platform refusal tested without touching the renderer),
+  `pdf`-package rendering and outline parsing headlessly — **I3.4**, **I4.1**.
+  Audit finding: the unused `image` dependency was removed from `pubspec.yaml`.
 - Map Explorer with pan/zoom, colour filters, grid, cursor readout, scale bar,
-  saved places, GeoJSON layers, distance/bearing, locate, and a disk-backed
-  tile cache under `https://tile.openstreetmap.org` with a named user agent —
-  **I1.6**.
+  saved places, GeoJSON layers, distance/bearing, locate, and a bounded tile
+  cache (4 concurrent, 100 ms spacing, 429/5xx backoff, 2000 files / 64 MiB
+  oldest-first) under `TileCache.tileHosts` with a named user agent —
+  **I1.6** (TODO-008 closed).
+- Explicit power-loss statement in code (`workspace_store.dart`) and README:
+  flush but no fsync; crash-safe, power-loss may lose the last write —
+  **I1.3**, **I4.3** (TODO-009 closed).
+- CI workflow `.github/workflows/ci.yml` (analyze + test + Linux debug build
+  on Flutter 3.47.5); `tool/smoke.sh` builds and runs the real binary with
+  isolated XDG dirs — **I4.1**, **I2.4** (TODO-006 closed; TODO-005 awaits a
+  green run).
 - Permission entries: `INTERNET` + coarse/fine location on Android,
-  `NSLocationWhenInUseUsageDescription` on iOS — **I3.3**.
-- README with the layout, the storage paths, and the commands that were run.
+  `NSLocationWhenInUseUsageDescription` on iOS and macOS — **I3.3**.
+- Release accounting: Linux release bundle 25 M, debug 126 M, web 41 M;
+  Linux debug + release and web release build here; Windows/macOS/Android/iOS
+  scaffolding unbuilt — **I4.3** (TODO-010, TODO-015 narrowed).
+- Decisions stated in the README: metrics/bridge are library code with no UI
+  caller (TODO-011 closed), `googleMap` is import-compat only with no view
+  (TODO-013 closed), one basemap + filter and no place search (TODO-014
+  closed), seven `docs/` guides (TODO-012 closed).
 
 Known gaps, in the order they should be closed:
 
-- **Nothing flushes when the app closes.** The engine only writes on a 250 ms
-  debounce and in `dispose`, which a window close on desktop does not reliably
-  reach, so the last keystrokes can be lost — **I1.3** is not held at exit.
-  TODO-003.
-- **The save label is wrong right after boot.** `mode` starts at `none`, so the
-  footer reads "not saved" even when the durable file was just restored — the
-  label describes "written this session" while the user reads "exists on disk".
-  **I2.3**. TODO-004.
-- **No CI and no run of the real binary.** The widget smoke test mounts the
-  shell headlessly, but nothing has executed `build/linux/…/chainnotes` on a
-  display; there is no workflow running analyze, test, or build — **I4.1**,
-  **I2.4**. TODO-005, TODO-006.
-- **View-level coverage is thin.** Declaring and reordering a section,
-  attaching a PDF page, saving a place, and stepping the lightbox have no
-  interaction tests; only the shell smoke test exercises the views — **I4.1**.
+- **No observed green CI run.** The workflow exists but has never been seen
+  green on GitHub, and there is no status badge — **I4.1**, **I2.4**.
+  TODO-005.
+- **Interaction coverage is core flows only.** Denied-location permission,
+  real-PDF rendering, and file-picker flows have no tests — **I4.1**.
   TODO-007.
-- **The tile client has no bounds beyond memory.** One hardcoded host, no rate
-  limit or backoff, no disk-cache size cap or eviction — **I1.6**. TODO-008.
-- **The store is weaker than the C original.** Writes flush the temp file and
-  rename, but there is no `fsync` of the file before the rename nor of the
-  directory after it, so a power loss can still lose the last write — the
-  guarantee should be strengthened or stated — **I1.3**, **I4.3**. TODO-009.
-- **Only Linux debug is built.** Windows, macOS, Android, and iOS have never
-  been built here, and the location entries have never been exercised on a
-  device — **I4.3**. TODO-010.
-- **The metrics core has no production surface.** The engine and codec are
-  tested library code with no UI caller; that is acceptable only as a decision
-  — **I1.4**. TODO-011.
-- **`docs/` was not ported.** The bridge protocol, architecture, and testing
-  notes from the original live only in its tree; this project has a README and
-  the two documents — **I1.5**. TODO-012.
+- **Unbuilt platforms.** Windows, macOS, Android, and iOS targets exist with
+  plugin dependencies unverified there, and location has never been exercised
+  on a device — **I4.3**. TODO-010.
+- **First-run latency unmeasured.** The release bundle builds, but tree/shader
+  warm-up behaviour on first launch was never recorded — **I0.1**, **I2.4**.
+  TODO-015.
+- **Remembered documents are not reopened.** A restart restores the record
+  (path, page, zoom, folder, viewport) but the PDF and the image folder must
+  be picked again from their remembered lists — **I2.1**. TODO-016.
+- **PDF pages do not render on Linux.** `pdfx` ships no Linux backend and its
+  detached platform assert escapes any caller-side `try/catch`; the `PdfOpener`
+  seam refuses with a precise sentence before touching the renderer, and
+  outline parsing stays pure Dart — but the product story for the primary
+  platform is undecided — **I4.4**, **I4.3**. TODO-017.
+
+## Appendix — how the app is shaped: input → process → output
+
+Every tool follows one pipeline: a gesture in the view, a decision in core
+(or a session), a write through the single record, and a visible
+confirmation. Nothing reaches disk except through `WorkspaceController`, and
+nothing reaches the network or filesystem except through the four seams
+(`FileService`, `TileCache`, `WorkspaceStore`, `geolocator`).
+
+| Tool | Input (gesture) | Process (where the decision lives) | Output (record + visible feedback) |
+| --- | --- | --- | --- |
+| TOC Manager | Title + level → Add; move up/down; remove; filter text; JSON/heading imports | `WorkspaceController.addTocItem/moveTocItem/removeTocItem/undoTocRemoval` validate + clamp; `importTocJson/importPdfHeadings` accept or set the `That file is not an outline export.` sentence | `outline` items + `lastRemoved` persisted; status sentence + row order on screen |
+| Text Editor | Keystroke in the bound buffer; Prev/Next; import/export draft | `setEditorContent` stores text, recomputes word count, `syncTocDraft` so outline and editor never disagree; `touch()` → 250 ms debounce → store | `editor` buffer + item draft persisted; `N words · <save mode>` + cursor position |
+| PDF Reader | Choose file; page/zoom controls; Attach page | `PdfSession.openAt` decodes via `pdfx`, caches pages; `parsePdfOutline` extracts headings; `attachPdfPage` binds page to the linked outline item | `pdf` path/name/page/zoom/recents persisted (file itself is NOT reopened); page readout + sidebar + remembered list |
+| Image Viewer | Choose directory; pick group; lightbox step; attach to section | `ImageSession.openAt` scans (500-file, depth, size caps) and groups; `stepLightbox` wraps; `attachImages` binds paths to the linked item | `images` path/groups/lightbox/recents persisted (folder itself is NOT reopened); grid + lightbox + `N images` badge |
+| Map Explorer | Drag/zoom; drop pin; Save/Clear pin; rename; GeoJSON load; Locate; Attach location | `MapSession` viewport math via `projection.dart`; `parsePlacesFile` validates CSV/GeoJSON (200-place cap); `TileRequestGate` admits or sheds load; `attachLocation` binds pin to the linked item | `map` viewport/places/filter/layers persisted; pin, readout (`045° NE · 1.2 km`), attribution on screen |
+| Menu | Tap a card | Reads badges from the controller + sessions; `selectView` switches the `IndexedStack` | `view` persisted so restart reopens the same tool; live badges |
+
+Global flows:
+
+```text
+boot:    main() → directories → readBootCache → WorkspaceController(boot)
+         → startPersistence → hydrate (durable wins unless strictly older)
+         → sessions → runApp → shell shows recorded view
+         output: mode=native + `saved to disk` when restored, else none
+
+keystroke: view → controller.setX → touch() → schedule()
+           → 250 ms → persist(): cache first, durable second (temp+rename)
+           → mode + report → status bar
+
+shutdown: hide/pause/detach → flushNow(); dispose() flushes pending
+          output: last sentence survives a window close
+
+metrics (library only): `[[1,2,3]]` → parser (comma/newline, signs, exponents)
+          → Welford engine → {count,sum,min,max,mean,variance} or
+          {error:{code,message}} — no view calls it, by decision
+```
 
 **One thing this snapshot exists to prevent.** During the port the obvious
 statement "a restart restores where you were" was written before the wiring

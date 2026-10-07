@@ -19,6 +19,7 @@ import 'package:chainnotes/ui/menu_view.dart';
 import 'package:chainnotes/ui/pdf_view.dart';
 import 'package:chainnotes/ui/shell.dart';
 import 'package:chainnotes/ui/toc_view.dart';
+import 'package:chainnotes/ui/widgets.dart';
 
 /// Boots the real shell with every tool mounted, then walks the view switch to
 /// make sure each pane builds without throwing.
@@ -76,5 +77,23 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     tiles.dispose();
     controller.dispose();
+  });
+
+  testWidgets('the status bar menu button shows the menu grid again',
+      (tester) async {
+    final controller = WorkspaceController(boot: normalizeWorkspace(null));
+    addTearDown(controller.dispose);
+    controller.selectView('toc');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MenuGridButton(controller: controller),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('show-menu-grid')));
+    await tester.pump();
+    expect(controller.view, 'menu');
+    expect(tester.takeException(), isNull);
   });
 }

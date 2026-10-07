@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Chainnotes Map Explorer uses your location only to centre the map when you press Locate.</string>
 </dict>
 </plist>

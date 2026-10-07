@@ -15,185 +15,97 @@ Priority levels:
 
 ## P0 — Make the documented product work end to end
 
-### TODO-003 — Flush the workspace when the app stops
-
-- **Intent:** I1.3, I2.1
-- **Priority:** P0
-- **Work:** Today the engine writes on a 250 ms debounce and inside
-  `WorkspaceApp.dispose`, which a desktop window close does not reliably reach:
-  closing the window can discard the last burst of typing, and a
-  `hasPendingSave` timer still in flight is cancelled by `dispose` without a
-  final write. Register an `AppLifecycleListener` (or the platform-appropriate
-  close hook) that calls `controller.flushNow()` on `paused`/`detached`, and
-  make the pending debounce flush rather than drop when the app leaves.
-- **Done when:** Typing a sentence and closing the window within the debounce
-  window, then relaunching, shows the sentence — verified by a test that
-  schedules a save and disposes the app object without waiting out the timer.
-
-### TODO-004 — Make the save label truthful right after boot
-
-- **Intent:** I2.3, I1.3
-- **Priority:** P0
-- **Work:** `WorkspacePersistence.mode` starts as `none`, so the status bar
-  reads "not saved" on a fresh launch even when `hydrate` has just restored the
-  workspace from disk. The label is answering "written this session" while the
-  user reads "does it exist on disk". Set the mode from the hydrate result (a
-  successful restore is `native`) and cover the three boot outcomes — restored,
-  nothing to restore, restore failed — in a test.
-- **Done when:** After a launch that restored a durable copy, the status bar
-  says `saved to disk`; after a launch with no file it says `not saved`; after
-  a rejected write it says `not saved` and the report pill carries the reason.
-
-### TODO-006 — Run the real binary once on a display and keep it repeatable
-
-- **Intent:** I4.1, I2.4, I0.1
-- **Priority:** P0
-- **Work:** `test/app_smoke_test.dart` mounts the shell headlessly, but nothing
-  has executed `build/linux/x64/debug/bundle/chainnotes`: directory
-  resolution, the first hydrate, the first tile request, and the first paint
-  have never run. Add a script (for example `tool/smoke.sh`) that builds the
-  Linux debug bundle, runs it under a virtual or real display for a bounded
-  time, fails on a non-zero exit or a crash log line, and redirects
-  `XDG_DATA_HOME`/`XDG_CACHE_HOME` into a temporary directory so a smoke run
-  can never read or rewrite a real workspace.
-- **Done when:** One documented command launches the actual application, exits
-  0 within the timeout, and its absence of a display is reported as a precise
-  remediation message rather than a hang.
+No open P0 items. TODO-003, TODO-004, and TODO-006 closed with evidence
+below.
 
 ## P1 — Make the workspace dependable
 
-### TODO-005 — Run analyze, test, and the Linux build in CI
+### TODO-016 — Reopen the remembered document and folder on restart
+
+- **Intent:** I2.1, I1.1
+- **Priority:** P1
+- **Work:** A restart restores the record (PDF path, page, zoom, remembered
+  lists; image folder, selected group, lightbox index; map viewport and
+  places) but reopens neither the PDF document nor the image folder — the
+  reader shows a `REMEMBERED` list instead. Either reload the remembered
+  document/folder automatically (with the recorded page/zoom/group applied and
+  a clear sentence when the file is gone), or record the decision to keep the
+  manual pick and stop implying an automatic restore.
+- **Done when:** After a restart with a remembered PDF and folder, the same
+  document page and folder group are showing without a manual pick — or the
+  README, the pyramid snapshot, and the views all state that the pick is
+  manual, and the status lines say so.
+
+### TODO-005 — See a green CI run for analyze, test, and the Linux build
 
 - **Intent:** I1.5, I4.1, I4.3
 - **Priority:** P1
-- **Work:** There is no `.github/workflows` (or equivalent) in the tree, so
-  nothing enforces the three commands the README promises. Add a workflow that
-  runs `flutter analyze`, `flutter test`, and `flutter build linux --debug` on
-  a pinned Flutter version matching `pubspec.yaml` (`sdk: ^3.13.4`).
+- **Work:** `.github/workflows/ci.yml` already runs `flutter analyze`,
+  `flutter test`, and `flutter build linux --debug` on Flutter 3.47.5, but it
+  has never been observed green on GitHub. Push it, watch one run go green,
+  and add the status badge (or a recorded run URL) to the README.
 - **Done when:** A pull request that breaks a test or an analyzer rule is
   rejected by CI, and the badge/status matches a green run on a clean checkout.
 
-### TODO-007 — Test the tools at the interaction level
+### TODO-007 — Cover the remaining interaction flows
 
 - **Intent:** I4.1, I2.2
 - **Priority:** P1
-- **Work:** Only the shell smoke test exercises the views. Add widget tests
-  for the paths users depend on: declaring, reordering, undoing, and
-  exporting a section in the TOC Manager; the editor's draft binding to the
-  active item; attaching a PDF page and importing headings; the lightbox
-  keyboard navigation; saving, renaming, and removing a place; and the error
-  sentences for a missing title, a non-outline import, and a denied location
-  permission.
-- **Done when:** Each of those flows has a test that fails when the flow
-  breaks, and `flutter test` remains the single command that runs them.
-
-### TODO-008 — Bound the tile client
-
-- **Intent:** I1.6, I3.4, I3.2
-- **Priority:** P1
-- **Work:** `lib/core/map/tile_source.dart` fetches from one hardcoded host
-  with no rate limit, no backoff on failure, and no size cap or eviction for
-  the disk cache (it grows without bound), while the memory side is a
-  512-tile LRU with no relationship to that disk usage. Add a bounded disk
-  cache with eviction, a small concurrency/rate limit with backoff on
-  429/5xx, and make the host list an explicit constant so adding a second
-  source is a deliberate edit.
-- **Done when:** A burst pan cannot exceed the configured request rate, a
-  failing host is retried with backoff instead of hammered, and the disk cache
-  stays under its cap with the oldest tiles evicted.
-
-### TODO-009 — Close the durability gap against the C store
-
-- **Intent:** I1.3, I4.3
-- **Priority:** P1
-- **Work:** `WorkspaceStore.save` writes the temp file, `flushSync`s it, and
-  renames it — but does not `fsync` the file before the rename nor the
-  directory after it, which is what the original `src/workspace_store.c`
-  guarantees. Either implement the stronger ordering (platform `fsync` on the
-  file and on the parent directory) or document, in the code and the README,
-  the weaker guarantee the Dart store actually provides.
-- **Done when:** Either a test or a documented statement makes the power-loss
-  behaviour of a save explicit, and no document claims fsync durability the
-  store does not perform.
+- **Work:** `test/tools_interaction_test.dart` (12 tests) covers TOC, editor,
+  links, places, and lightbox; `test/package_integration_test.dart` (14
+  tests) covers picker flows via `FakeFileService` (TOC export/import, editor
+  import/export, image directory, places CSV), locate via `FakeLocations`
+  (denied, disabled, fix), and the PDF backend seam. Still thin: picker
+  *cancel* paths (user dismisses the dialog) have no widget coverage.
+- **Done when:** Cancel-path tests exist for at least the TOC import/export
+  and PDF open flows, and `flutter test` remains the single command.
 
 ## P2 — Keep it maintainable and portable
 
-### TODO-010 — Build and verify the platforms that are declared
+### TODO-010 — Build the remaining declared platforms
 
 - **Intent:** I4.3, I3.3, I4.4
 - **Priority:** P2
-- **Work:** Only `flutter build linux --debug` has been run. Windows, macOS,
-  Android, and iOS targets exist in the tree with plugin dependencies
-  (`file_selector`, `geolocator`, `pdfx`, `path_provider`) that are unverified
-  there, and macOS ships no location usage string at all. Build each target,
-  add the macOS `Info.plist` usage descriptions if that target ships, and
-  record which platforms are actually supported in the README.
+- **Work:** Linux debug + release and web release build here, the macOS
+  `Info.plist` carries the location usage string, and the README names the
+  supported set. Still unbuilt here: Windows (needs a Windows host),
+  macOS/iOS (need Xcode), and location exercised on
+  a real device. The Android APK build was skipped (long, unattended); if it
+  ships, build it and record it. Build each remaining target that ships and
+  record it.
 - **Done when:** Every platform listed as supported builds from a clean
   checkout, and the README names exactly those.
 
-### TODO-011 — Give the metrics core a surface or state it has none
-
-- **Intent:** I1.4, I1.2
-- **Priority:** P2
-- **Work:** The Welford engine and the bridge envelope are ported and tested
-  (`test/metrics_test.dart`, `test/bridge_test.dart`) but no view calls them —
-  the same gap the original records for `summarize`. Either expose the engine
-  through a small tool in the menu grid, or state in the README that it is
-  portable library code carried for parity with the original.
-- **Done when:** A reader can tell from the documentation whether the metrics
-  engine is a product feature, and the answer matches the tree.
-
-### TODO-012 — Port the documentation the original keeps in `docs/`
-
-- **Intent:** I1.5, I4.3
-- **Priority:** P2
-- **Work:** The original documents its architecture, bridge protocol, map
-  sources, and testing strategy under `docs/`; this project has a README plus
-  these two documents, so the bridge envelope and error codes are only
-  discoverable by reading `lib/core/metrics/summarize_bridge.dart`. Write the
-  equivalent notes (architecture layering, bridge request/response and error
-  table, map tile sources and usage policy, how to run each test suite).
-- **Done when:** A contributor can answer "what shape goes over the bridge and
-  what comes back" from a document, and the document names the file that
-  implements it.
-
 ## P3 — Optional polish and open decisions
 
-### TODO-013 — Decide the Google Maps viewer's fate
-
-- **Intent:** I1.1, I4.4
-- **Priority:** P3
-- **Work:** The `googleMap` section of the record is normalized and persisted
-  but has no view. Decide whether to port the viewer (which in the original
-  uses an unlicensed tile endpoint — see the source project's own warning),
-  to keep the field purely for import compatibility, or to drop it from the
-  schema in a versioned way.
-- **Done when:** The README and the schema agree, and a workspace from the
-  original either loads as intended or says why it cannot.
-
-### TODO-014 — Decide the Map Explorer's two open features
-
-- **Intent:** I1.6, I1.1
-- **Priority:** P3
-- **Work:** The Explorer has a colour filter over one basemap, not a basemap
-  switcher, and there is no place search anywhere in the tree — deliberately,
-  because a geocoder would be a second network client behind a new seam. Record
-  the decision: keep as is, or specify the transport for search and the source
-  list for a switcher before any UI is written.
-- **Done when:** The pyramid entry for I1.6 and the README state the decision,
-  and no UI claims a feature that does not exist.
-
-### TODO-015 — Release build and size pass
-
+### TODO-015 — Measure release first-run latency
 - **Intent:** I0.1, I2.4
 - **Priority:** P3
-- **Work:** Only a debug Linux bundle has been built. Produce a release build,
-  note the bundle size and startup behaviour, and check that the tree/shader
-  warm-up path does not regress first-run latency.
-- **Done when:** A release bundle is built by a documented command and its
-  size and first-run behaviour are recorded in the README.
+- **Work:** The Linux release bundle builds (25 M) and its size is recorded in
+  the README, but tree/shader warm-up behaviour on first launch was never
+  measured. Launch the release bundle on a display, note startup behaviour,
+  and record it.
+- **Done when:** First-run latency of the release bundle is recorded in the
+  README alongside the size.
 
-## Closed during the port
+### TODO-017 — Decide the Linux PDF rendering story
+
+- **Intent:** I4.4, I4.3
+- **Priority:** P2
+- **Work:** `pdfx` ships native backends for Android, iOS, macOS, and Windows
+  only — no Linux — and its `openFile` fires an unawaited platform assert that
+  no caller-side `try/catch` can contain. `PdfSession` now goes through the
+  `PdfOpener` seam (`lib/sessions/pdf_backend.dart`): unsupported platforms
+  get `PDF rendering is not available on this platform.` without touching
+  `pdfx`, outline parsing stays pure Dart everywhere, and fakes cover the
+  open paths in `test/package_integration_test.dart`. Decide the product
+  story for the primary platform: adopt a renderer with a Linux backend,
+  shell out to a system viewer, or keep document-closed-on-Linux (headings and
+  TOC import still work from parsed bytes) as the stated position.
+- **Done when:** The README, the pyramid snapshot, and the PDF Reader agree on
+  what opening a document does on Linux, and the chosen path has a test.
+
+## Closed (with evidence)
 
 ### TODO-001 — Hydrate from the boot cache record, not a fresh snapshot — DONE
 
@@ -228,3 +140,91 @@ Priority levels:
   no layout exception.
 - **Evidence:** `test/app_smoke_test.dart` passes; the overflow was found by
   that test, which is the reason it exists.
+
+### TODO-012 — Port the documentation the original keeps in `docs/` — DONE
+
+- **Intent:** I1.5, I4.3
+- **Priority:** P2
+- **Work:** Covered by the seven guides now in `docs/`: architecture layering
+  (`architecture.md`), bridge request/response and error table
+  (`bridge-protocol.md`), map tile sources and usage policy
+  (`map-sources.md`), and per-suite testing notes (`testing.md`).
+- **Done when:** A contributor can answer "what shape goes over the bridge and
+  what comes back" from a document, and the document names the file that
+  implements it.
+- **Evidence:** `docs/bridge-protocol.md` documents the `[[number, …]]`
+  envelope and error codes naming
+  `lib/core/metrics/summarize_bridge.dart`; `test/readme_test.dart` guards
+  the `docs/README.md` index.
+
+### TODO-003 — Flush the workspace when the app stops — DONE
+
+- **Intent:** I1.3, I2.1
+- **Priority:** P0
+- **Evidence:** `AppLifecycleListener` (pause/hide/detach) in
+  `lib/main.dart` calls `controller.flushNow()`; `WorkspacePersistence.dispose()`
+  flushes a pending debounce instead of cancelling it. Locked by the
+  dispose-flush test in `test/persistence_test.dart` (schedule, dispose without
+  waiting, durable file exists). Full suite: 100/100, `flutter analyze` clean.
+
+### TODO-004 — Make the save label truthful right after boot — DONE
+
+- **Intent:** I2.3, I1.3
+- **Priority:** P0
+- **Evidence:** `hydrate()` sets `mode = PersistenceMode.native` on a
+  successful restore. Locked by three tests in `test/persistence_test.dart`:
+  restored → `saved to disk`, nothing to restore → `not saved` with no report,
+  damaged file → `not saved` + `INVALID_CONTENT`.
+
+### TODO-006 — Run the real binary once on a display and keep it repeatable — DONE
+
+- **Intent:** I4.1, I2.4, I0.1
+- **Priority:** P0
+- **Evidence:** `tool/smoke.sh --build --timeout=10` builds the Linux debug
+  bundle and runs it with isolated `XDG_DATA_HOME`/`XDG_CACHE_HOME`; verified
+  2026-10-07 on display `:0` → `Smoke OK (exit=124)`. No-display case exits 3
+  with a remediation message. Documented in `docs/development.md`.
+
+### TODO-008 — Bound the tile client — DONE
+
+- **Intent:** I1.6, I3.4, I3.2
+- **Priority:** P1
+- **Evidence:** `TileCache.tileHosts` is an explicit host list; `TileRequestGate`
+  (`lib/core/map/tile_policy.dart`) caps 4 concurrent fetches with 100 ms
+  spacing and exponential backoff on 429/5xx; disk cache capped at 2000 files /
+  64 MiB with oldest-first eviction. Locked by 9 tests in
+  `test/tile_policy_test.dart` and documented in `docs/map-sources.md`.
+
+### TODO-009 — Close the durability gap against the C store — DONE
+
+- **Intent:** I1.3, I4.3
+- **Priority:** P1
+- **Evidence:** Documented the weaker guarantee instead of implementing fsync
+  (`dart:io` exposes neither file nor directory fsync): explicit power-loss
+  statement in `lib/core/workspace/workspace_store.dart` and the README
+  (crash-safe, power-loss may lose the last write). No document claims fsync
+  durability — verified by grep over `docs/` and `README.md`.
+
+### TODO-011 — Give the metrics core a surface or state it has none — DONE
+
+- **Intent:** I1.4, I1.2
+- **Priority:** P2
+- **Evidence:** Decision recorded: portable library code with no UI caller.
+  Stated in the README Notes, `docs/overview.md`, and `docs/bridge-protocol.md`;
+  pyramid I1.4 marks it decided.
+
+### TODO-013 — Decide the Google Maps viewer's fate — DONE
+
+- **Intent:** I1.1, I4.4
+- **Priority:** P3
+- **Evidence:** Decision recorded: no view; the `googleMap` section is
+  normalized and persisted for import compatibility only. Stated in the README,
+  `docs/tools.md`, `docs/map-sources.md`, and pyramid I1.1.
+
+### TODO-014 — Decide the Map Explorer's two open features — DONE
+
+- **Intent:** I1.6, I1.1
+- **Priority:** P3
+- **Evidence:** Decision recorded: one basemap with a colour filter and no
+  place search (a geocoder would be a second network client). Stated in the
+  README Notes and pyramid I1.6; no UI claims either feature.

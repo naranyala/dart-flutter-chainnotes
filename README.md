@@ -1,8 +1,7 @@
 # chainnotes
 
-A Flutter port of the desktop workspace in `../webview-app-with-clua`: six tools
-over one persisted record, written in pure Dart with no C, no Lua, and no
-WebView.
+A Flutter desktop workspace: six tools over one persisted record, written in
+pure Dart for the domain logic with thin Flutter views.
 
 | Tool | What it is for |
 | --- | --- |
@@ -13,9 +12,8 @@ WebView.
 | **Image Viewer** | Folder-grouped thumbnail grid with a full-screen lightbox. |
 | **Map Explorer** | OpenStreetMap tiles, colour filters, saved places, GeoJSON layers, distance and bearing, locate. |
 
-The Google Maps viewer was not ported (it depends on an unlicensed tile
-endpoint); the record keeps the `googleMap` section so a workspace exported from
-the original still normalizes cleanly.
+The record schema includes a reserved `googleMap` section which is normalized
+and persisted but has no view; workspaces containing it load cleanly.
 
 ## Quick start
 
@@ -27,8 +25,9 @@ flutter run -d linux
 ```
 
 `flutter analyze` must be clean and `flutter test` must pass — currently
-**67 tests across seven suites**. Verified on 2026-10-07 against Flutter 3.47.5
-(stable), Dart 3.13.4: analyze clean, 67/67 tests, `flutter build linux --debug`
+**107 functional tests across ten suites (115 total with the docs guard)**.
+Verified on 2026-10-07 against Flutter 3.47.5
+(stable), Dart 3.13.4: analyze clean, 115/115 tests, `flutter build linux --debug`
 succeeds. Full command list, prerequisites, and output paths are in
 [`docs/development.md`](docs/development.md).
 
@@ -41,7 +40,7 @@ Start at [`docs/README.md`](docs/README.md).
 | [`docs/overview.md`](docs/overview.md) | Why the project exists, what it does, what it deliberately does not |
 | [`docs/architecture.md`](docs/architecture.md) | Which layer owns what, and what happens between launch and first paint |
 | [`docs/tools.md`](docs/tools.md) | The six tools, the session behind each, and how they reference each other |
-| [`docs/bridge-protocol.md`](docs/bridge-protocol.md) | The surviving metrics contract and what replaced the WebView bindings |
+| [`docs/bridge-protocol.md`](docs/bridge-protocol.md) | The metrics contract and the Dart API surfaces |
 | [`docs/development.md`](docs/development.md) | Prerequisites, commands, output paths, troubleshooting |
 | [`docs/testing.md`](docs/testing.md) | Every suite, what each proves, what is not tested |
 | [`docs/map-sources.md`](docs/map-sources.md) | Tile host, user agent, caching, attribution, licensing position |
@@ -71,8 +70,8 @@ lib/main.dart      composition root: boot cache → hydrate → sessions → she
   debounced 250 ms, cache first then durable, through a temp file + rename with a
   4 MiB cap. The durable copy wins on boot unless it is strictly older than the
   boot cache.
-* **Bridge contract.** `lib/core/metrics/summarize_bridge.dart` keeps the
-  original request envelope (`[[number, …]]`, comma or newline separators) and
+* **Metrics contract.** `lib/core/metrics/summarize_bridge.dart` defines the
+  request envelope (`[[number, …]]`, comma or newline separators) and
   error codes (`INVALID_REQUEST`, `EMPTY_INPUT`, `INVALID_VALUE`,
   `ENGINE_FAILED`, `BUFFER_TOO_SMALL`, `OUT_OF_MEMORY`).
 * **All six stay mounted** in an `IndexedStack`, so scroll position, rendered
@@ -98,7 +97,8 @@ lib/main.dart                 Composition root: directories, boot cache,
 lib/app/workspace_controller.dart  The single shared WorkspaceRecord: outline
                               CRUD, links, editor buffer, touch()/notifyChanged()
 lib/app/services.dart         FileService: open/save/directory pickers, text I/O
-lib/app/theme.dart            Design tokens ported from styles/tokens.css
+lib/app/location.dart         LocationQuery seam over geolocator (fakeable)
+lib/app/theme.dart            Design tokens for the workspace theme
 
 --- core: widget-free ------------------------------------------------
 lib/core/geo/geo.dart         Great-circle distance, bearing, compass points
@@ -106,9 +106,11 @@ lib/core/metrics/metrics_engine.dart  Welford engine, population variance
 lib/core/metrics/summarize_bridge.dart  Request parser, success payload,
                               error vocabulary and envelope
 lib/core/map/projection.dart  Web-Mercator project/unproject, zoom clamping
-lib/core/map/tile_source.dart TileCache: host, user agent, memory LRU, disk cache
+lib/core/map/tile_source.dart TileCache: hosts, user agent, memory LRU, disk cache
+lib/core/map/tile_policy.dart Request gate (concurrency, spacing, backoff),
+                              disk eviction picker
 lib/core/pdf/pdf_outline.dart Best-effort /Outlines parser (ObjStm, page tree)
-lib/core/pdf/outline_pdf_writer.dart  Outline-to-PDF renderer (ported C)
+lib/core/pdf/outline_pdf_writer.dart  Outline-to-PDF renderer
 lib/core/workspace/workspace_models.dart  Schema, clamps, normalize/serialize
 lib/core/workspace/workspace_store.dart   Atomic durable file, 4 MiB cap, codes
 lib/core/workspace/workspace_persistence.dart  Debounce, write order, merge,
@@ -116,6 +118,7 @@ lib/core/workspace/workspace_persistence.dart  Debounce, write order, merge,
 
 --- sessions: per-tool transient state -------------------------------
 lib/sessions/pdf_session.dart    Open document, page count, zoom, page cache
+lib/sessions/pdf_backend.dart    PdfOpener seam: pdfx has no Linux backend
 lib/sessions/image_session.dart  Directory scan, folder groups, lightbox
 lib/sessions/map_session.dart    Viewport, pin, layers, locate, import parsers
 
@@ -131,12 +134,15 @@ lib/ui/widgets.dart           Shared toolbar/status/eyebrow vocabulary
 
 --- tests ---------------------------------------------------------------
 test/workspace_test.dart          Schema normalization, clamps, helpers (14)
-test/persistence_test.dart        Debounce, write order, merge, save modes (13)
+test/persistence_test.dart        Debounce, write order, merge, save modes (17)
 test/workspace_store_test.dart    Atomic store, size cap, result codes (13)
 test/boot_composition_test.dart   The composition root wiring (3)
 test/metrics_test.dart            Engine precision and rejected values (12)
 test/bridge_test.dart             Protocol parser, envelope, codes (11)
-test/app_smoke_test.dart          Mounts the shell, walks all six views (1)
+test/tile_policy_test.dart        Request gate, eviction, cache constants (9)
+test/tools_interaction_test.dart  TOC, editor, links, places, lightbox (12)
+test/package_integration_test.dart  Pickers, locate, pdf seams (14)
+test/app_smoke_test.dart          Mounts the shell, status bar menu button (2)
 test/readme_test.dart             Keeps this map, the docs index, and the
                                   README's commands in step with the tree
 
@@ -145,7 +151,7 @@ docs/README.md                 Documentation index and the honesty guard
 docs/overview.md               Purpose, scope, current state, known gaps
 docs/architecture.md           Layering rule, ownership, runtime sequence
 docs/tools.md                  The six tools in detail
-docs/bridge-protocol.md        The metrics contract and the binding replacement
+docs/bridge-protocol.md        The metrics contract and the Dart surfaces
 docs/development.md            Prerequisites, commands, troubleshooting
 docs/testing.md                Suites, coverage, and what is not tested
 docs/map-sources.md            Tile host, caching, policy position
@@ -161,23 +167,43 @@ The honest list, with owners in [`TODOS.md`](./TODOS.md):
   can be lost ([TODO-003](./TODOS.md)).
 * The save label reports writes this session, so it reads `not saved` right
   after a successful restore ([TODO-004](./TODOS.md)).
-* No CI, no interaction tests beyond the shell smoke test, and the built binary
-  has never been launched on a display ([TODO-005](./TODOS.md),
-  [TODO-006](./TODOS.md), [TODO-007](./TODOS.md)).
-* The tile client has no rate limit and no disk-cache cap
-  ([TODO-008](./TODOS.md)).
-* The store does not `fsync` before renaming ([TODO-009](./TODOS.md)).
+* CI exists as `.github/workflows/ci.yml` (analyze + test + Linux debug
+  build) but has no observed green run yet ([TODO-005](./TODOS.md)).
+* Interaction coverage is core flows only: TOC declare/reorder/undo/filter,
+  editor binding, PDF attach, outline transfers, places, lightbox stepping
+  (`test/tools_interaction_test.dart`). Denied-location, real-PDF, and
+  picker flows remain untested ([TODO-007](./TODOS.md)).
+* The release binary was built but first-run latency was not measured
+  ([TODO-015](./TODOS.md)).
+* The store does not `fsync` the file before renaming nor the directory
+  after it, so a power loss may lose the last write even after `ok`
+  ([TODO-009](./TODOS.md)). Crash-during-write is safe (old or new file,
+  never half-written).
 * The metrics engine and bridge codec have no production UI caller
   ([TODO-011](./TODOS.md)).
 
 ## Notes
 
 * Map tiles come from OpenStreetMap with a declared user agent, cached in
-  memory (512 tiles) and on disk (`lib/core/map/tile_source.dart`); see
+  memory (512 tiles) and on disk (2000 files / 64 MiB, oldest-first eviction;
+  `lib/core/map/tile_source.dart`, `lib/core/map/tile_policy.dart`); at most
+  4 concurrent fetches with 100 ms spacing and backoff on 429/5xx. See
   [`docs/map-sources.md`](docs/map-sources.md) for the attribution and policy
   position.
 * Android/iOS declare `INTERNET` and the location permissions the Locate action
-  needs; iOS explains location use in `Info.plist`.
-* The PDF reader renders with `pdfx`; the document outline is parsed by a
-  custom best-effort parser (`lib/core/pdf/pdf_outline.dart`) because `pdfx`
-  exposes no outline API, and it fails soft with a readable message.
+  needs; iOS and macOS explain location use in their `Info.plist` files.
+* The PDF reader renders with `pdfx` through the `PdfOpener` seam
+  (`lib/sessions/pdf_backend.dart`) — except on Linux, where `pdfx` ships no
+  backend, so opening reports `PDF rendering is not available on this
+  platform.` instead of touching the renderer; the outline parser
+  (`lib/core/pdf/pdf_outline.dart`) is pure Dart and works everywhere, but
+  `pdfx` exposes no outline API, so headings come from it and fail soft with
+  a readable message.
+* Platforms: Linux desktop is verified (debug + release); Web release builds.
+  Windows/macOS/Android/iOS scaffolding exists but was not built here.
+  Measured 2026-10-07: `build/linux/x64/release/bundle` 25 M,
+  `build/linux/x64/debug/bundle` 126 M, `build/web` 41 M.
+* The metrics engine and bridge codec are portable library code with no
+  production UI caller; the `googleMap` record section is kept for import
+  compatibility with no view; Map Explorer intentionally has one basemap with
+  a colour filter and no place search (no second network client).

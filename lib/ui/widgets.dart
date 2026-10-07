@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import '../app/workspace_controller.dart';
 
 enum ToolbarVariant { primary, subtle }
 
@@ -163,6 +164,28 @@ class ToolToolbar extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The status bar's way back: one button that shows the entire menu grid
+/// again from any tool.
+class MenuGridButton extends StatelessWidget {
+  const MenuGridButton({super.key, required this.controller});
+
+  final WorkspaceController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('show-menu-grid'),
+      tooltip: 'Show menu grid',
+      iconSize: 16,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      color: WorkspaceColors.textMuted,
+      onPressed: () => controller.selectView('menu'),
+      icon: const Icon(Icons.grid_view),
     );
   }
 }

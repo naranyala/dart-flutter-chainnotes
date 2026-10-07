@@ -92,7 +92,8 @@ interface.
 ## Current state
 
 Verified against the tree and a full run on 2026-10-07 — `flutter analyze`
-clean, `flutter test` 67/67, `flutter build linux --debug` succeeds. The
+clean, `flutter test` 114/114, `flutter build linux --debug`, `--release`,
+and `flutter build web --release` succeed. The
 authoritative version, with the reasoning behind each entry, is the
 [current state snapshot](../PYRAMID-OF-INTENTS.md#current-state-snapshot) in
 the intent pyramid.
@@ -102,21 +103,21 @@ Implemented and working:
 - Six tools in one shell, all mounted at once so scroll position, rendered
   PDF pages, and the map canvas survive a switch.
 - A widget-free core: normalizer, 4 MiB atomic store, debounce/merge
-  persistence, Welford metrics, bridge codec, Web-Mercator projection, tile
-  fetch/cache, PDF outline parser, outline-to-PDF writer.
-- 67 tests across seven files, including a widget smoke test that mounts the
-  shell and walks every view.
+  persistence with lifecycle flush, Welford metrics, bridge codec,
+  Web-Mercator projection, bounded tile fetch/cache, PDF outline parser,
+  outline-to-PDF writer.
+- 106 functional tests plus 8 docs-guard tests, including widget interaction
+  suites and third-party seam tests that run without platform channels.
 
 The gaps worth knowing before you build on it:
 
 | Gap | Why it matters |
 | --- | --- |
-| Nothing flushes when the window closes | The last burst of typing inside the debounce window can be lost. TODO-003 |
-| The save label says "not saved" right after a successful restore | It reports writes this session, not existence on disk. TODO-004 |
-| No CI, and the real binary has never been launched on a display | The widget smoke test is headless; `TODO-006` is the missing run |
-| No interaction tests for the tools themselves | Only the shell smoke test exercises the views. TODO-007 |
-| The tile client has no rate limit and no disk-cache cap | One hardcoded host, unbounded growth. TODO-008 |
-| The store does not `fsync` before renaming | Weaker power-loss guarantees than the C original. TODO-009 |
+| PDF pages do not render on Linux | `pdfx` ships no Linux backend; opening reports `PDF rendering is not available on this platform.` Outline parsing still works everywhere. TODO-017 |
+| No observed green CI run | The workflow exists but has never been seen green on GitHub. TODO-005 |
+| Interaction coverage is core flows only | Picker cancel paths are thin; native PDF rendering is untestable on Linux. TODO-007 |
+| Unbuilt platforms | Windows/macOS/Android/iOS targets exist but were not built here. TODO-010 |
+| First-run latency unmeasured | The release bundle builds (25 M) but startup was never timed. TODO-015 |
 | Last document and image folder are remembered, not reopened | A restart restores the record, not the open file. TODO-016 |
 
 Follow-up work is tracked in [`TODOS.md`](../TODOS.md), and every item there is

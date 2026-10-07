@@ -29,6 +29,15 @@ class WorkspaceStoreLoad {
 
 /// Durable workspace file store.
 ///
+/// Power-loss guarantee (explicit): save writes `workspace.json.tmp`,
+/// flushes the file content (`flushSync`), then renames it over the target.
+/// A completed write never leaves a half-written workspace behind, but the
+/// file is NOT fsynced before the rename and the parent directory is NOT
+/// fsynced after it — `dart:io` exposes neither. An OS crash or power loss
+/// in that window may therefore lose the last write even after `ok` was
+/// returned. Crash-during-write is safe (old file or new file, never half);
+/// power-loss-during-rename is only as durable as the platform's rename.
+///
 /// Load checks the on-disk size *before* reading so a runaway file never costs
 /// an allocation, and save writes `workspace.json.tmp`, flushes it, renames it
 /// over the target, and flushes again.

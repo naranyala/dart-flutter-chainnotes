@@ -10,10 +10,12 @@
 | Git | Any recent version |
 | Network | Only for `flutter pub get`, and for tiles at runtime |
 
-Android, iOS, macOS, Windows, and Web scaffolding directories exist — they
-were generated with the project — but **Linux desktop is the only target
-this project has been built and verified on.** Treat the others as unproven;
-see [testing](testing.md#what-is-not-tested).
+Android, iOS, macOS, Windows, and Web scaffolding directories exist.
+**Verified here:** Linux debug + release and Web release. Windows/macOS/Android/iOS
+were not built here (Windows needs a Windows host, macOS/iOS need Xcode,
+Android needs the SDK); the macOS `Info.plist` now carries the location usage
+string. Treat unbuilt targets as unproven; see
+[testing](testing.md#what-is-not-tested).
 
 ```sh
 flutter pub get
@@ -25,13 +27,14 @@ Run everything from the repository root.
 
 | Command | What it does |
 | --- | --- |
-| `flutter pub get` | Install dependencies (`path_provider`, `file_selector`, `http`, `image`, `pdf`, `pdfx`, `geolocator`) |
+| `flutter pub get` | Install dependencies (`path_provider`, `file_selector`, `http`, `pdf`, `pdfx`, `geolocator`) |
 | `flutter analyze` | Static analysis with `analysis_options.yaml`. **Must be clean — no warnings, no infos** |
-| `flutter test` | Run all seven suites (67 tests) |
+| `flutter test` | Run all suites (107 functional tests, 115 total with the docs guard) |
 | `flutter test test/bridge_test.dart` | Run one suite while iterating |
 | `flutter test --reporter expanded` | Same run, one line per test |
 | `flutter run -d linux` | Launch on a display with hot reload |
 | `flutter build linux --debug` | Bundle a debug build |
+| `tool/smoke.sh --build --timeout=12` | Build then run the real binary under the current display for 12 s with isolated XDG dirs; exit 124 (timeout) means it stayed up |
 | `flutter build linux --release` | Bundle a release build |
 | `flutter devices` | List connected targets |
 | `flutter config --enable-linux-desktop` | Re-enable desktop targets if they are missing |
@@ -39,8 +42,9 @@ Run everything from the repository root.
 ### Where the output lands
 
 ```text
-build/linux/x64/debug/bundle/chainnotes        # debug binary and assets
-build/linux/x64/release/bundle/chainnotes       # release binary and assets
+build/linux/x64/debug/bundle/chainnotes        # debug binary and assets (126 M bundle, 2026-10-07)
+build/linux/x64/release/bundle/chainnotes       # release binary and assets (25 M bundle, 2026-10-07)
+build/web/                                      # web release (41 M, 2026-10-07)
 build/                                          # git-ignored
 ```
 
@@ -56,7 +60,7 @@ lib/
   sessions/    per-tool transient state (pdf, image, map)
   ui/          views: shell, menu, toc, editor, pdf, images, map, widgets
   main.dart    composition root: directories, boot cache, persistence, runApp
-test/          seven suites
+test/          nine suites (functional + docs guard)
 docs/          the guides you are reading
 PYRAMID-OF-INTENTS.md   the constraints a change must respect
 TODOS.md                the backlog, linked to those intents
@@ -96,8 +100,10 @@ only when the whole suite runs, look for shared state between tests.
 installed.
 
 **The build fails inside a plugin.** Delete `build/` and `.dart_tool/`, then
-`flutter pub get`. All six dependencies are pure Dart or have Linux support;
-there is no native code of ours in the build.
+`flutter pub get`. Note `pdfx` ships no Linux backend (see the PDF note in the
+README): the app builds and runs on Linux, but page rendering reports
+`PDF rendering is not available on this platform.` there. There is no native
+code of ours in the build.
 
 **Tiles do not load.** See [map sources](map-sources.md#troubleshooting): the
 host, the user agent, and the proxy/VPN case are all documented there.

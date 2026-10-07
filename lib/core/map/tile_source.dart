@@ -1,14 +1,23 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:http/http.dart' as http;
 
+import 'tile_policy.dart';
+
 /// Fetches and caches raster tiles: memory first, then disk, then the network.
 ///
 /// The desktop host handed tiles to `<img>` elements and let the WebView cache
 /// them; here the cache is explicit so a pan does not refetch what was already
 /// seen.
+///
+/// Bounds (TODO-008): at most [maxConcurrentRequests] network fetches in
+/// flight, at least [minRequestIntervalMs] between starts, exponential backoff
+/// after 429/5xx (serving cache while backing off), and a disk cache capped at
+/// [maxDiskFiles] files / [maxDiskBytes] bytes with oldest-first eviction.
+/// Switching providers is a one-line change to [tileHosts].
 class TileCache {
   TileCache({required this.cacheDirectory, http.Client? client})
       : _client = client ?? http.Client();
@@ -18,6 +27,21 @@ class TileCache {
 
   static const String userAgent =
       'chainnotes/1.0 (desktop workspace; flutter tile client)';
+
+  /// The only tile hosts the app may contact. Adding a provider is a
+  /// deliberate edit here; nothing else in the tree constructs a tile URL.
+  static const List<String> tileHosts = <String>[
+    'https://tile.openstreetmap.org',
+  ];
+
+  static const int maxConcurrentRequests = 4;
+  static const int minRequestIntervalMs = 100;
+
+  /// Disk bounds: ~2k tiles at typical OSM sizes fits comfortably under 64 MiB.
+  static const int maxDiskFiles = 2000;
+  static const int maxDiskBytes = 64 * 1024 * 1024;
+
+  final TileRequestGate gate = TileRequestGate();
 
   final Map<String, ui.Image> _images = <String, ui.Image>{};
   final Map<String, Future<ui.Image?>> _inflight = <String, Future<ui.Image?>>{};
@@ -84,23 +108,72 @@ class TileCache {
       // Fall through to the network.
     }
 
-    final url = 'https://tile.openstreetmap.org/$z/$x/$y.png';
+    final url = '${tileHosts.first}/$z/$x/$y.png';
+    final now = DateTime.now();
+    if (!gate.canFetch(now)) return null;
+    gate.onStart(now);
     try {
       final response = await _client.get(
         Uri.parse(url),
         headers: {'User-Agent': userAgent},
       );
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        gate.onResult(DateTime.now(), response.statusCode);
+        return null;
+      }
+      gate.onSuccess();
       final bytes = response.bodyBytes;
       try {
         await file.parent.create(recursive: true);
         await file.writeAsBytes(bytes, flush: true);
+        unawaited(_enforceDiskBounds());
       } on FileSystemException {
         // A read-only cache directory is not fatal.
       }
       return bytes;
     } catch (_) {
+      gate.onError();
       return null;
+    }
+  }
+
+  /// Deletes the oldest tile files until the disk cache fits within
+  /// [maxDiskFiles] / [maxDiskBytes]. Best-effort: failures are ignored.
+  Future<void> _enforceDiskBounds() async {
+    final root = Directory(
+      '${cacheDirectory.path}${Platform.pathSeparator}tiles',
+    );
+    List<FileSystemEntity> entities;
+    try {
+      if (!root.existsSync()) return;
+      entities = root.listSync(recursive: true, followLinks: false);
+    } on FileSystemException {
+      return;
+    }
+    final entries = <DiskTileEntry>[];
+    for (final entity in entities) {
+      if (entity is! File || !entity.path.endsWith('.png')) continue;
+      try {
+        entries.add(DiskTileEntry(
+          path: entity.path,
+          bytes: entity.lengthSync(),
+          modified: entity.lastModifiedSync(),
+        ));
+      } on FileSystemException {
+        continue;
+      }
+    }
+    final evict = pickTileEvictions(
+      entries,
+      maxFiles: maxDiskFiles,
+      maxBytes: maxDiskBytes,
+    );
+    for (final victim in evict) {
+      try {
+        File(victim.path).deleteSync();
+      } on FileSystemException {
+        continue;
+      }
     }
   }
 

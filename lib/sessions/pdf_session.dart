@@ -5,13 +5,21 @@ import 'package:pdfx/pdfx.dart';
 
 import '../app/workspace_controller.dart';
 import '../core/pdf/pdf_outline.dart';
+import 'pdf_backend.dart';
 
 /// The PDF Reader session: the open document, its contents sidebar, the
 /// remembered paths, and the reading position that reaches disk.
+///
+/// Rendering needs a platform backend (`pdfx` has none for Linux), so opening
+/// goes through [PdfOpener]: unsupported platforms get a precise sentence and
+/// never touch `pdfx`, whose detached platform assert no `try/catch` could
+/// contain.
 class PdfSession extends ChangeNotifier {
-  PdfSession(this.controller);
+  PdfSession(this.controller, {PdfOpener? opener})
+      : _opener = opener ?? const PdfxOpener();
 
   final WorkspaceController controller;
+  final PdfOpener _opener;
 
   final ToolStatus status = ToolStatus('Open a PDF from your local system.');
   bool sidebarOpen = true;
@@ -60,13 +68,19 @@ class PdfSession extends ChangeNotifier {
   }
 
   /// Opens a document from an absolute path; a missing or unreadable file is
-  /// reported and dropped from the remembered list, exactly like the host did.
+  /// reported and dropped from the remembered list. Where the platform has no
+  /// renderer, the path is refused with a precise sentence instead.
   Future<bool> openAt(String path) async {
     if (path.trim().isEmpty) return false;
+    if (!_opener.isSupported) {
+      setStatus(_opener.unsupportedMessage, error: true);
+      notifyListeners();
+      return false;
+    }
     setStatus('Opening $path…');
     await _closeDocument();
     try {
-      final document = await PdfDocument.openFile(path);
+      final document = await _opener.openFile(path);
       _document = document;
       pageCount = document.pagesCount;
       openPath = path;
