@@ -40,7 +40,18 @@ class WorkspaceShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final onMenu = controller.view == 'menu';
+        return PopScope(
+          // On phones the system back button goes back to the menu instead
+          // of leaving the app, so a stray back press never loses context.
+          canPop: onMenu,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && !onMenu) controller.selectView('menu');
+          },
+          child: Scaffold(
       backgroundColor: WorkspaceColors.background,
       body: SafeArea(
         child: Column(
@@ -72,6 +83,9 @@ class WorkspaceShell extends StatelessWidget {
           ],
         ),
       ),
+          ),
+        );
+      },
     );
   }
 }
@@ -111,10 +125,10 @@ class WorkspaceReportPill extends StatelessWidget {
           ),
           IconButton(
             onPressed: onDismiss,
-            icon: const Icon(Icons.close, size: 13),
+            icon: const Icon(Icons.close, size: 16),
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             tooltip: 'Dismiss',
           ),
         ],

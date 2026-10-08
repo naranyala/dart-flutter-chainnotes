@@ -324,9 +324,10 @@ class _TocViewState extends State<TocView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Form(
-            child: Row(
-              children: [
-                Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 560;
+                final field = Expanded(
                   flex: 3,
                   child: TextFormField(
                     key: const Key('toc-title-input'),
@@ -339,10 +340,9 @@ class _TocViewState extends State<TocView> {
                     ),
                     onFieldSubmitted: (_) => _declare(),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 170,
+                );
+                final level = SizedBox(
+                  width: narrow ? 140 : 170,
                   child: DropdownButtonFormField<int>(
                     isExpanded: true,
                     initialValue: _level,
@@ -354,13 +354,42 @@ class _TocViewState extends State<TocView> {
                     ],
                     onChanged: (value) => setState(() => _level = value ?? 1),
                   ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
+                );
+                final add = FilledButton(
                   onPressed: _declare,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(48, 44),
+                    tapTargetSize: MaterialTapTargetSize.padded,
+                  ),
                   child: const Text('Add section'),
-                ),
-              ],
+                );
+                if (narrow) {
+                  // Phones: title on its own line, level + button below.
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      field,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: level),
+                          const SizedBox(width: 8),
+                          add,
+                        ],
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    field,
+                    const SizedBox(width: 8),
+                    level,
+                    const SizedBox(width: 8),
+                    add,
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 4),
@@ -668,10 +697,10 @@ class _TocViewState extends State<TocView> {
     return IconButton(
       tooltip: tooltip,
       onPressed: enabled ? onTap : null,
-      icon: Icon(icon, size: 16),
+      icon: Icon(icon, size: 18),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       color: WorkspaceColors.text,
       disabledColor: WorkspaceColors.border,
     );

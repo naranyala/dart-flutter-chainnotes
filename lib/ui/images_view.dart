@@ -60,21 +60,46 @@ class _ImagesViewState extends State<ImagesView> {
     return ListenableBuilder(
       listenable: Listenable.merge([controller, session]),
       builder: (context, _) {
-        return Column(
-          children: [
-            _toolbar(),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 680;
+            final body = session.hasImages ? _grid() : _empty();
+            if (narrow) {
+              return Column(
                 children: [
-                  if (session.sidebarOpen) _sidebar(),
-                  Expanded(
-                    child: session.hasImages ? _grid() : _empty(),
-                  ),
+                  _toolbar(),
+                  if (session.sidebarOpen)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: WorkspaceColors.surface,
+                          border: Border(
+                              bottom: BorderSide(
+                                  color: WorkspaceColors.borderSubtle)),
+                        ),
+                        child: _sidebarContent(),
+                      ),
+                    ),
+                  Expanded(child: body),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              children: [
+                _toolbar(),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (session.sidebarOpen) _sidebar(),
+                      Expanded(child: body),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -131,39 +156,43 @@ class _ImagesViewState extends State<ImagesView> {
   }
 
   Widget _sidebar() {
-    final groups = session.groups;
     return Container(
       width: 236,
       decoration: const BoxDecoration(
         color: WorkspaceColors.surface,
         border: Border(right: BorderSide(color: WorkspaceColors.borderSubtle)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: const w.Eyebrow('FOLDERS'),
-          ),
-          Expanded(
-            child: groups.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                      'Open a folder to group its images.',
-                      style: TextStyle(
-                          fontSize: 12.5, color: WorkspaceColors.textMuted),
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-                    children: [
-                      for (final group in groups) _groupButton(group),
-                    ],
+      child: _sidebarContent(),
+    );
+  }
+
+  Widget _sidebarContent() {
+    final groups = session.groups;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: const w.Eyebrow('FOLDERS'),
+        ),
+        Expanded(
+          child: groups.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text(
+                    'Open a folder to group its images.',
+                    style: TextStyle(
+                        fontSize: 12.5, color: WorkspaceColors.textMuted),
                   ),
-          ),
-        ],
-      ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+                  children: [
+                    for (final group in groups) _groupButton(group),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 

@@ -66,24 +66,23 @@ class _EditorViewState extends State<EditorView> {
   }
 
   void _syncFromRecord() {
+    // Never mutate the TextEditingController synchronously inside build:
+    // on mobile IMEs that fights the composing region. Defer to post-frame.
     final active = controller.activeTocItem;
-    if (active == null) {
-      if (_lastSyncedItem != null) {
-        _lastSyncedItem = null;
-        if (_text.text != controller.editorContent) {
-          _text.text = controller.editorContent;
-        }
+    final wantText =
+        active == null ? controller.editorContent : active.content;
+    final wantId = active?.id;
+    if (_lastSyncedItem == wantId && _text.text == wantText) return;
+    final syncedId = wantId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_lastSyncedItem == syncedId && _text.text == wantText) return;
+      _lastSyncedItem = syncedId;
+      if (_text.text != wantText) {
+        _text.text = wantText;
+        _text.selection = TextSelection.collapsed(offset: _text.text.length);
       }
-      return;
-    }
-    if (_lastSyncedItem == active.id && _text.text == controller.editorContent) {
-      return;
-    }
-    _lastSyncedItem = active.id;
-    if (_text.text != active.content) {
-      _text.text = active.content;
-      _text.selection = TextSelection.collapsed(offset: _text.text.length);
-    }
+    });
   }
 
   Future<void> _importDraft() async {

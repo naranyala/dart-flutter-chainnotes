@@ -139,6 +139,16 @@ String workspaceDirectoryPath(String dataDirectory) =>
 String workspaceFilePath(String dataDirectory) =>
     '${workspaceDirectoryPath(dataDirectory)}${Platform.pathSeparator}workspace.json';
 
+/// Pure path helper so callers without `dart:io` can find a file's parent.
+/// Handles both `/` and `\` separators; falls back to `.` when there is none.
+String parentOf(String path) {
+  final slash = path.lastIndexOf('/');
+  final backslash = path.lastIndexOf('\\');
+  final cut = slash > backslash ? slash : backslash;
+  if (cut <= 0) return '.';
+  return path.substring(0, cut);
+}
+
 /// Creates a directory the store is about to write into (the equivalent of
 /// `ensure_workspace_directory` in C). The store itself never creates
 /// directories, so a missing parent still fails the write.

@@ -32,7 +32,7 @@ class MapSession extends ChangeNotifier {
   final WorkspaceController controller;
   final LocationQuery _locations;
 
-  final ToolStatus status = ToolStatus('Click the map to drop a pin.');
+  final ToolStatus status = ToolStatus('Long-press the map to drop a pin.');
 
   double centerLat = 20;
   double centerLon = 0;
@@ -133,7 +133,8 @@ class MapSession extends ChangeNotifier {
   void savePin({String? label}) {
     final current = pin;
     if (current == null) {
-      setStatus('Click the map to drop a pin before saving it.', error: true);
+      setStatus('Long-press the map to drop a pin before saving it.',
+          error: true);
       notifyListeners();
       return;
     }
@@ -174,7 +175,7 @@ class MapSession extends ChangeNotifier {
       return false;
     }
     if (current == null) {
-      setStatus('Click the map to drop a pin before attaching it.',
+      setStatus('Long-press the map to drop a pin before attaching it.',
           error: true);
       notifyListeners();
       return false;

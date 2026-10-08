@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Chainnotes uses your location to centre the map on where you are when you tap Locate.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Chainnotes reads images from the folder you pick so it can show thumbnails and the lightbox.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

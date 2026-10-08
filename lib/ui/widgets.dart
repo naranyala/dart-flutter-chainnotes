@@ -34,8 +34,20 @@ class ToolbarButton extends StatelessWidget {
       ],
     );
     final button = switch (variant) {
-      ToolbarVariant.primary => FilledButton(onPressed: onPressed, child: child),
-      ToolbarVariant.subtle => OutlinedButton(onPressed: onPressed, child: child),
+      ToolbarVariant.primary => FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(48, 44),
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+          child: child),
+      ToolbarVariant.subtle => OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 44),
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+          child: child),
     };
     final padded = dense
         ? Padding(
@@ -180,9 +192,9 @@ class MenuGridButton extends StatelessWidget {
     return IconButton(
       key: const Key('show-menu-grid'),
       tooltip: 'Show menu grid',
-      iconSize: 16,
+      iconSize: 20,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       color: WorkspaceColors.textMuted,
       onPressed: () => controller.selectView('menu'),
       icon: const Icon(Icons.grid_view),

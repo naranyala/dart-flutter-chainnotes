@@ -25,6 +25,9 @@ class PdfxOpener implements PdfOpener {
 
   @override
   bool get isSupported {
+    // Web reports a desktop platform via defaultTargetPlatform, but pdfx
+    // has no web renderer behind this seam — refuse before touching it.
+    if (kIsWeb) return false;
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
       case TargetPlatform.iOS:

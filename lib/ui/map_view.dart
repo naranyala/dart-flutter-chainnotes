@@ -288,20 +288,49 @@ class _MapViewState extends State<MapView>
     return ListenableBuilder(
       listenable: Listenable.merge([controller, session]),
       builder: (context, _) {
-        return Column(
-          children: [
-            _toolbar(),
-            _optionsBar(),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 680;
+            if (narrow) {
+              // Phones: places panel goes on top with a capped height so
+              // the canvas keeps a usable size.
+              return Column(
                 children: [
-                  if (controller.map.sidebarOpen) _sidebar(),
+                  _toolbar(),
+                  _optionsBar(),
+                  if (controller.map.sidebarOpen)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 240),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: WorkspaceColors.surface,
+                          border: Border(
+                              bottom: BorderSide(
+                                  color: WorkspaceColors.borderSubtle)),
+                        ),
+                        child: _sidebar(width: double.infinity),
+                      ),
+                    ),
                   Expanded(child: _canvas()),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              children: [
+                _toolbar(),
+                _optionsBar(),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (controller.map.sidebarOpen) _sidebar(),
+                      Expanded(child: _canvas()),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -500,7 +529,11 @@ class _MapViewState extends State<MapView>
               _flightActive = false;
               session.zoomBy(1);
             },
-            onTapUp: (details) => _dropPinAt(details.localPosition),
+            // Long-press drops the pin: a plain tap is for panning on touch
+            // screens, and dropping a pin on every tap made the map unusable
+            // on phones.
+            onLongPressStart: (details) =>
+                _dropPinAt(details.localPosition),
             child: MouseRegion(
               onHover: (event) {
                 if (!controller.map.showCursor) return;
@@ -751,9 +784,9 @@ class _MapViewState extends State<MapView>
 
   /* --- sidebar ------------------------------------------------------------- */
 
-  Widget _sidebar() {
+  Widget _sidebar({double width = 292}) {
     return Container(
-      width: 292,
+      width: width,
       decoration: const BoxDecoration(
         color: WorkspaceColors.surface,
         border: Border(right: BorderSide(color: WorkspaceColors.borderSubtle)),
@@ -810,7 +843,7 @@ class _MapViewState extends State<MapView>
           const SizedBox(height: 8),
           if (controller.map.places.isEmpty)
             const Text(
-              'No places yet. Click the map to drop a pin, then save it with a name.',
+              'No places yet. Long-press the map to drop a pin, then save it with a name.',
               style: TextStyle(
                   fontSize: 12.5, color: WorkspaceColors.textMuted),
             )

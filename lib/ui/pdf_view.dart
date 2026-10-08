@@ -180,19 +180,48 @@ class _PdfViewState extends State<PdfView> {
     return ListenableBuilder(
       listenable: Listenable.merge([controller, pdf]),
       builder: (context, _) {
-        return Column(
-          children: [
-            _toolbar(),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Phones: the contents panel goes on top with a capped height
+            // instead of squeezing the reader into a ~70px column.
+            final narrow = constraints.maxWidth < 680;
+            final body = pdf.isOpen ? _reader() : _empty();
+            if (narrow) {
+              return Column(
                 children: [
-                  if (pdf.sidebarOpen) _sidebar(),
-                  Expanded(child: pdf.isOpen ? _reader() : _empty()),
+                  _toolbar(),
+                  if (pdf.sidebarOpen)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 240),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: WorkspaceColors.surface,
+                          border: Border(
+                              bottom: BorderSide(
+                                  color: WorkspaceColors.borderSubtle)),
+                        ),
+                        child: _sidebarContent(),
+                      ),
+                    ),
+                  Expanded(child: body),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              children: [
+                _toolbar(),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (pdf.sidebarOpen) _sidebar(),
+                      Expanded(child: body),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -247,14 +276,19 @@ class _PdfViewState extends State<PdfView> {
   }
 
   Widget _sidebar() {
-    final headings = pdf.headings;
     return Container(
       width: 272,
       decoration: const BoxDecoration(
         color: WorkspaceColors.surface,
         border: Border(right: BorderSide(color: WorkspaceColors.borderSubtle)),
       ),
-      child: Column(
+      child: _sidebarContent(),
+    );
+  }
+
+  Widget _sidebarContent() {
+    final headings = pdf.headings;
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -296,8 +330,7 @@ class _PdfViewState extends State<PdfView> {
           const Divider(),
           _linkPanel(),
         ],
-      ),
-    );
+      );
   }
 
   Widget _headingRow(PdfOutlineEntry heading) {

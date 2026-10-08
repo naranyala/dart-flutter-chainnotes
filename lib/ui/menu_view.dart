@@ -112,18 +112,23 @@ class MenuView extends StatelessWidget {
                 const SizedBox(height: 24),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final columns = constraints.maxWidth < 720
-                        ? 2
-                        : constraints.maxWidth < 1000
-                            ? 3
-                            : cards.length;
+                    // Phones get one wide card per row so badges never clip;
+                    // tablets get two, wide screens get the full row.
+                    final narrow = constraints.maxWidth < 560;
+                    final columns = narrow
+                        ? 1
+                        : constraints.maxWidth < 900
+                            ? 2
+                            : constraints.maxWidth < 1200
+                                ? 3
+                                : cards.length;
                     return GridView.count(
                       crossAxisCount: columns,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       mainAxisSpacing: 18,
                       crossAxisSpacing: 18,
-                      childAspectRatio: 2.4,
+                      childAspectRatio: narrow ? 3.2 : 2.4,
                       children: [
                         for (final card in cards)
                           _ToolCard(

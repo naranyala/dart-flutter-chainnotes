@@ -113,10 +113,13 @@ class TileCache {
     if (!gate.canFetch(now)) return null;
     gate.onStart(now);
     try {
-      final response = await _client.get(
-        Uri.parse(url),
-        headers: {'User-Agent': userAgent},
-      );
+      final response = await _client
+          .get(
+            Uri.parse(url),
+            headers: {'User-Agent': userAgent},
+          )
+          // Mobile networks stall: never wait forever on one tile.
+          .timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) {
         gate.onResult(DateTime.now(), response.statusCode);
         return null;

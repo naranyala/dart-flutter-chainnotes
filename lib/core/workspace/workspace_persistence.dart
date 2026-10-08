@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'workspace_models.dart';
 import 'workspace_store.dart';
@@ -51,7 +50,7 @@ class WorkspaceStoreBridge {
 
   /// The synchronous boot cache (the localStorage equivalent).
   bool saveCache(String payload) {
-    if (!ensureDirectory(File(cachePath).parent.path)) return false;
+    if (!ensureDirectory(parentOf(cachePath))) return false;
     return store.save(cachePath, payload).isOkResult;
   }
 
@@ -62,7 +61,7 @@ class WorkspaceStoreBridge {
 
   /// The durable file (the native loadWorkspace/saveWorkspace equivalent).
   bool saveDurable(String payload) {
-    if (!ensureDirectory(File(durablePath).parent.path)) return false;
+    if (!ensureDirectory(parentOf(durablePath))) return false;
     return store.save(durablePath, payload).isOkResult;
   }
 
