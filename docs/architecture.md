@@ -2,28 +2,26 @@
 
 ## The one rule
 
-> **The views own input and presentation. The core owns validation, state,
-> and persistence.**
+> **Views handle input and display. Core handles validation, state, and saving.**
 
-Almost every design decision follows from that sentence, so it is worth being
-concrete about what it forbids:
+Most decisions in this project come back to that line. In practice it means:
 
-- A view must not parse a file, decode JSON, or decide whether input is
-  valid — it asks a session or `WorkspaceController`.
-- A view must not reach the network or the filesystem directly — `FileService`,
-  `TileCache`, and `WorkspaceStore` are the only modules that do.
-- Shared state must not be mirrored: there is one `WorkspaceRecord`, owned by
-  `WorkspaceController`, and a second copy inside a widget would diverge.
+- A view doesn't parse files, decode JSON, or decide if input is valid — it
+  asks a session or `WorkspaceController`.
+- A view doesn't touch the network or the filesystem — only `FileService`,
+  `TileCache`, and `WorkspaceStore` do.
+- There's exactly one `WorkspaceRecord`, owned by `WorkspaceController`. A
+  widget never keeps its own second copy, because the two would drift apart.
 
-`lib/core` and `lib/app` import no widgets from `lib/ui`. `lib/ui` imports the
-layers below it, never the reverse. `flutter analyze` does not enforce that
-today — it is a convention with a `grep` behind it — and keeping it that way is
-[TODO-007](../TODOS.md)'s neighbour rather than a tooling project.
+`lib/core` and `lib/app` don't import widgets from `lib/ui`. `lib/ui`
+imports from the layers below, never the other way around.
+`flutter analyze` doesn't enforce this — it's a convention you check with
+`grep` — and keeping it that way matters more than adding tooling for it.
 
-## Component map
+## How the pieces fit
 
 ```text
-                       lib/ui  (views, one per tool)
+                       lib/ui  (one view per tool)
         menu · toc · editor · pdf · images · map  ─── shell (IndexedStack)
                     │                 │
                     │ reads/writes    │ transient state
@@ -43,132 +41,131 @@ today — it is a convention with a `grep` behind it — and keeping it that way
         <support>/native-workspace/workspace.json   (durable)
         <cache>/workspace.json                      (boot cache)
 
-        lib/core/{geo,metrics,map,pdf}/  — pure functions and services
+        lib/core/{geo,metrics,map,pdf}/  — plain functions and services
         lib/app/services.dart            — file pickers and text read/write
         lib/core/map/tile_source.dart    — the only HTTP client in the app
 ```
 
-## Ownership
+## Who owns what
 
 ### The controller
 
-[`lib/app/workspace_controller.dart`](../lib/app/workspace_controller.dart) is
-the single owner of `WorkspaceRecord`: the outline and its drafts, the active
-item, the editor buffer, and each tool's persisted session. It also carries
-the operations that change more than one tool's view of that record — outline
-CRUD, link attachment (`attachPdfPage`, `attachImages`, `attachLocation`),
-place management, remembered paths, and the JSON export/import envelope.
+[`lib/app/workspace_controller.dart`](../lib/app/workspace_controller.dart)
+owns the `WorkspaceRecord`: the outline and its drafts, the selected item,
+the editor buffer, and each tool's saved session. It also has the operations
+that touch more than one tool — outline edits, link attachments
+(`attachPdfPage`, `attachImages`, `attachLocation`), places, remembered paths,
+and JSON import/export.
 
-Two rules keep it honest:
+Two habits keep it predictable:
 
-- **Every write funnels through `touch()`** (or an operation that calls it):
-  the user-interaction latch first, then the debounced write, then
-  `notifyListeners`. Hydration runs before any interaction, so a restore can
-  never be overwritten by a state the user has already changed.
-- **`notifyChanged()` is the non-interaction path**, for a session that
-  changed shared state without a user gesture. It rebuilds without scheduling
-  a save.
+- **Every user edit goes through `touch()`.** That latches the interaction,
+  schedules the debounced save, then notifies listeners. Restoring from disk
+  happens before any interaction, so a restore can't be overwritten by
+  something you just typed.
+- **`notifyChanged()` is for the quiet path**, when a session updates shared
+  state without a user gesture. It rebuilds the UI without scheduling a save.
 
-### The sessions
+### Sessions
 
-| Session | File | Owns |
+| Session | File | Keeps track of |
 | --- | --- | --- |
-| `PdfSession` | [`lib/sessions/pdf_session.dart`](../lib/sessions/pdf_session.dart) | The open document, page count, render zoom, page image cache, extracted headings, TOC load |
-| `ImageSession` | [`lib/sessions/image_session.dart`](../lib/sessions/image_session.dart) | Directory scan, folder groups, lightbox index, scan limits |
-| `MapSession` | [`lib/sessions/map_session.dart`](../lib/sessions/map_session.dart) | Viewport, pin, fly requests, GeoJSON layers, locate, import parsers |
+| `PdfSession` | [`lib/sessions/pdf_session.dart`](../lib/sessions/pdf_session.dart) | Open document, page count, zoom, cached pages, headings, TOC load |
+| `ImageSession` | [`lib/sessions/image_session.dart`](../lib/sessions/image_session.dart) | Folder scan, folder groups, lightbox position, scan limits |
+| `MapSession` | [`lib/sessions/map_session.dart`](../lib/sessions/map_session.dart) | Map position, pin, fly requests, GeoJSON layers, locate, file parsing |
 
 A session reads shared state from the controller and writes back through it,
-so persistence still happens on one path. What a session keeps — a decoded
-PDF, a list of scanned images, a decoded tile layer — never reaches disk.
+so saving still happens in one place. What a session keeps for itself — a
+decoded PDF, a list of scanned images, decoded tiles — never touches disk.
 
-### The core
+### Core
 
-| File | Responsibility |
+| File | What it does |
 | --- | --- |
-| [`lib/core/workspace/workspace_models.dart`](../lib/core/workspace/workspace_models.dart) | The schema, the clamps, and `normalizeWorkspace` / `serializeWorkspace` — the only shape the file may take |
-| [`lib/core/workspace/workspace_store.dart`](../lib/core/workspace/workspace_store.dart) | The durable file: temp write, flush, rename, 4 MiB cap checked *before* reading, result codes instead of exceptions |
-| [`lib/core/workspace/workspace_persistence.dart`](../lib/core/workspace/workspace_persistence.dart) | The 250 ms debounce, the write order (cache first, durable second), the boot merge rules, and the report the status pill renders |
+| [`lib/core/workspace/workspace_models.dart`](../lib/core/workspace/workspace_models.dart) | The file format, safe defaults, and `normalizeWorkspace` / `serializeWorkspace` |
+| [`lib/core/workspace/workspace_store.dart`](../lib/core/workspace/workspace_store.dart) | Saving the durable file: temp write, flush, rename, 4 MiB limit checked *before* reading, result codes instead of exceptions |
+| [`lib/core/workspace/workspace_persistence.dart`](../lib/core/workspace/workspace_persistence.dart) | The 250 ms debounce, the order (cache first, durable second), the boot merge, and the report shown in the status bar |
 | [`lib/core/metrics/metrics_engine.dart`](../lib/core/metrics/metrics_engine.dart) | Welford's engine: count, sum, min, max, mean, population variance |
-| [`lib/core/metrics/summarize_bridge.dart`](../lib/core/metrics/summarize_bridge.dart) | The request/response codec and the error vocabulary carried from `src/webview_bridge.c` |
-| [`lib/core/map/projection.dart`](../lib/core/map/projection.dart) | Web-Mercator project/unproject, tile enumeration, zoom clamping, easing |
-| [`lib/core/map/tile_source.dart`](../lib/core/map/tile_source.dart) | The only HTTP client: host, user agent, memory LRU, disk cache |
-| [`lib/core/pdf/pdf_outline.dart`](../lib/core/pdf/pdf_outline.dart) | Best-effort PDF outline parser (`/Outlines`, `/ObjStm`, page-tree walk) |
-| [`lib/core/pdf/outline_pdf_writer.dart`](../lib/core/pdf/outline_pdf_writer.dart) | The outline-to-PDF renderer, ported from `src/outline_pdf.c` |
+| [`lib/core/metrics/summarize_bridge.dart`](../lib/core/metrics/summarize_bridge.dart) | The request/response format and error codes |
+| [`lib/core/map/projection.dart`](../lib/core/map/projection.dart) | Web-Mercator math, tile listing, zoom clamping, easing |
+| [`lib/core/map/tile_source.dart`](../lib/core/map/tile_source.dart) | The only HTTP client: host, user agent, memory and disk cache |
+| [`lib/core/pdf/pdf_outline.dart`](../lib/core/pdf/pdf_outline.dart) | Reads PDF outlines (`/Outlines`, object streams, page tree) as best it can |
+| [`lib/core/pdf/outline_pdf_writer.dart`](../lib/core/pdf/outline_pdf_writer.dart) | Turns an outline back into a PDF |
 | [`lib/core/geo/geo.dart`](../lib/core/geo/geo.dart) | Distance, bearing, compass points, formatting |
-| [`lib/app/services.dart`](../lib/app/services.dart) | `FileService`: open/save/directory pickers and the 8 MiB text read guard |
-| [`lib/app/theme.dart`](../lib/app/theme.dart) | The design tokens ported from `styles/tokens.css` |
+| [`lib/app/services.dart`](../lib/app/services.dart) | `FileService`: file open/save and folder pickers, with an 8 MiB guard on text reads |
+| [`lib/app/theme.dart`](../lib/app/theme.dart) | The design tokens for the workspace theme |
 
-### The workspace store and the merge
+### Saving and merging
 
 The store writes `<support>/native-workspace/workspace.json` by writing a
-temporary file, flushing it, and renaming it — a completed write never leaves
-a half-written workspace behind. It enforces the 4 MiB cap in both
-directions, and the read path checks the file's length **before** allocating.
+temp file, flushing it, and renaming it over the old one — so a finished
+write never leaves a half-written file behind. It enforces the 4 MiB limit
+both ways, and checks the size on disk **before** allocating memory to read.
 
-There is no `fsync` of the file or its parent directory, which is what the C
-original guarantees. Either strengthen it or state it — [TODO-009](../TODOS.md).
+One honest limit: the file is flushed but not `fsync`ed, and neither is its
+folder, which is weaker than the C original. That's documented rather than
+hidden — [TODO-009](../TODOS.md).
 
-The merge on boot is one comparison, and both of its inputs come from disk:
+Merging at boot is a single comparison, and both sides come from disk:
 
 ```dart
 final boot = readBootCache(bridge);          // <cache>/workspace.json
 final controller = WorkspaceController(boot: boot);
 startPersistence(boot: boot, controller: controller, bridge: bridge);
-// inside: hydrate(boot) → native wins unless native.savedAt < boot.savedAt
+// inside: hydrate(boot) → durable wins unless native.savedAt < boot.savedAt
 ```
 
-Passing `controller.snapshot()` here instead of `boot` stamps the boot side
-with the current time, so the durable copy always loses and a restart restores
-nothing while every merge-rule test still passes. That was a real defect, and
-`test/boot_composition_test.dart` now fails against it — see
+It's easy to get this wrong by passing `controller.snapshot()` instead of
+`boot` — that stamps the boot side with "right now", so the durable copy
+always looks older and a restart restores nothing, while all the merge-rule
+tests still pass. That actually happened once, and
+`test/boot_composition_test.dart` now guards the wiring — see
 [TODO-001](../TODOS.md).
 
-### The views
+### Views
 
-| View | File | Reads |
+| View | File | Shows |
 | --- | --- | --- |
-| Launcher | `lib/ui/menu_view.dart` | Controller badges plus each session's badge |
-| TOC Manager | `lib/ui/toc_view.dart` | Controller outline, all three sessions for cross-links |
-| Text Editor | `lib/ui/editor_view.dart` | Controller draft, active item, status |
-| PDF Reader | `lib/ui/pdf_view.dart` | `PdfSession`, controller page/zoom/link target |
-| Image Viewer | `lib/ui/images_view.dart` | `ImageSession`, controller link target |
-| Map Explorer | `lib/ui/map_view.dart` | `MapSession`, controller places/filter/renderer, `TileCache` |
-| Shell | `lib/ui/shell.dart` | `IndexedStack` over the six, status bar beneath |
-| Widgets | `lib/ui/widgets.dart` | The shared toolbar/status/eyebrow vocabulary |
+| Launcher | `lib/ui/menu_view.dart` | Badges from the controller and sessions |
+| TOC Manager | `lib/ui/toc_view.dart` | Outline plus links from all three sessions |
+| Text Editor | `lib/ui/editor_view.dart` | Draft, selected item, status |
+| PDF Reader | `lib/ui/pdf_view.dart` | `PdfSession` plus saved page/zoom/link target |
+| Image Viewer | `lib/ui/images_view.dart` | `ImageSession` plus link target |
+| Map Explorer | `lib/ui/map_view.dart` | `MapSession` plus places, filter, and tiles |
+| Shell | `lib/ui/shell.dart` | All six in an `IndexedStack`, status bar below |
+| Widgets | `lib/ui/widgets.dart` | Shared toolbar, status, and eyebrow styles |
 
-Full detail, including what each tool does and how they reference each other,
-is in [the tools guide](tools.md).
+What each tool actually does is in [the tools guide](tools.md).
 
-## Runtime sequence
+## From launch to typing
 
-1. `main()` resolves the cache and support directories through
-   `path_provider`.
-2. `readBootCache` reads the boot cache — a damaged file degrades to an empty
-   workspace rather than an exception.
-3. `WorkspaceController` is constructed from that record; the shell renders
-   the recorded view.
-4. `startPersistence` builds the engine and hydrates: the durable copy wins
-   unless it is strictly older than the boot cache.
-5. The sessions are constructed and the app is handed to `runApp`.
-6. A gesture — declaring a section, opening a PDF, dropping a pin — goes
-   through a view to a session or the controller.
-7. The controller latches the interaction, schedules a write, and notifies.
-8. 250 ms later `persist()` writes the boot cache synchronously, then the
-   durable file when its payload changed.
-9. A failure sets the report the status pill renders as
-   `Workspace not saved: …` or `Saved workspace not restored: …`.
+1. `main()` finds the cache and support folders via `path_provider`.
+2. `readBootCache` reads the boot copy — a damaged file becomes an empty
+   workspace, not a crash.
+3. `WorkspaceController` starts from that record; the shell shows the saved
+   view.
+4. `startPersistence` hydrates: the durable copy wins unless it's strictly
+   older than the boot copy.
+5. Sessions are created and `runApp` takes over.
+6. Anything you do — adding a heading, opening a PDF, dropping a pin — goes
+   from a view to a session or the controller.
+7. The controller notes the interaction, schedules a save, and notifies.
+8. 250 ms later `persist()` writes the boot cache, then the durable file if
+   it changed.
+9. If something fails, the status bar shows `Workspace not saved: …` or
+   `Saved workspace not restored: …`.
 
-## The extension rule
+## Adding something new
 
-For a new capability:
+If you're adding a capability:
 
-1. Put the domain logic and its tests in `lib/core`.
-2. Give it a session in `lib/sessions` only if it carries state that does not
-   reach disk.
+1. Put the logic and its tests in `lib/core`.
+2. Add a session in `lib/sessions` only if it needs state that doesn't get
+   saved.
 3. Add operations to `WorkspaceController` only if they change the shared
-   record — and let `touch()` do the saving.
-4. Let the view render and collect input; it should not decide anything.
+   record — and let `touch()` handle saving.
+4. Let the view render and collect input; it shouldn't make decisions.
 5. Test the core first, then the boundary, then the view.
 
-Do not put validation in a widget to avoid adding a core function; that is the
-one direction the layers are not allowed to lean.
+Don't validate input in a widget just to avoid adding a core function. That's
+the one direction the layers aren't allowed to lean.

@@ -1,7 +1,25 @@
 # chainnotes
 
-A Flutter desktop workspace: six tools over one persisted record, written in
-pure Dart for the domain logic with thin Flutter views.
+**Chainnotes is a Flutter desktop workspace for outline-driven reading and
+note-taking: six tools working over one shared, persisted record.**
+
+All correctness-critical logic — schema
+normalization, the atomic file store, persistence merge, map projection, and
+the metrics engine — lives in a widget-free `lib/core` that is unit-tested,
+while the Flutter views stay thin.
+
+In daily use, you declare the structure of your work in the **TOC Manager**,
+draft against each heading in the **Text Editor**, and link headings outward
+to a page in the **PDF Reader**, a folder group in the **Image Viewer**, or a
+saved place in the **Map Explorer**, all launched from a **Menu** with live
+badges. Everything reads and writes a single `WorkspaceRecord` owned by
+`WorkspaceController`, autosaved through a debounced, atomic JSON store, so
+switching tools never loses scroll, page, or map state, and a restart restores
+the last view, outline, drafts, and each tool's recorded session.
+
+Chainnotes is built as a small, readable starter: one composition root in
+`lib/main.dart`, explicit seams for files, tiles, and location, and docs that
+match the code that actually runs.
 
 | Tool | What it is for |
 | --- | --- |
@@ -12,8 +30,9 @@ pure Dart for the domain logic with thin Flutter views.
 | **Image Viewer** | Folder-grouped thumbnail grid with a full-screen lightbox. |
 | **Map Explorer** | OpenStreetMap tiles, colour filters, saved places, GeoJSON layers, distance and bearing, locate. |
 
-The record schema includes a reserved `googleMap` section which is normalized
-and persisted but has no view; workspaces containing it load cleanly.
+The file format also has a reserved `googleMap` section. It loads and saves
+like everything else, but nothing displays it — so workspaces that contain it
+still open fine.
 
 ## Quick start
 
@@ -24,28 +43,29 @@ flutter test
 flutter run -d linux
 ```
 
-`flutter analyze` must be clean and `flutter test` must pass — currently
-**107 functional tests across ten suites (115 total with the docs guard)**.
-Verified on 2026-10-07 against Flutter 3.47.5
-(stable), Dart 3.13.4: analyze clean, 115/115 tests, `flutter build linux --debug`
-succeeds. Full command list, prerequisites, and output paths are in
+`flutter analyze` should come back clean and `flutter test` should pass —
+right now that's **107 feature tests across ten suites (115 total with the
+docs guard)**.
+Checked on 2026-10-07 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
+clean, 115/115 tests, `flutter build linux --debug` works. For setup steps,
+the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
 ## Documents
 
-Start at [`docs/README.md`](docs/README.md).
+Start at [`docs/README.md`](docs/README.md) — it's the index.
 
-| Document | What it is |
+| Document | What you'll find |
 | --- | --- |
-| [`docs/overview.md`](docs/overview.md) | Why the project exists, what it does, what it deliberately does not |
-| [`docs/architecture.md`](docs/architecture.md) | Which layer owns what, and what happens between launch and first paint |
-| [`docs/tools.md`](docs/tools.md) | The six tools, the session behind each, and how they reference each other |
-| [`docs/bridge-protocol.md`](docs/bridge-protocol.md) | The metrics contract and the Dart API surfaces |
-| [`docs/development.md`](docs/development.md) | Prerequisites, commands, output paths, troubleshooting |
-| [`docs/testing.md`](docs/testing.md) | Every suite, what each proves, what is not tested |
-| [`docs/map-sources.md`](docs/map-sources.md) | Tile host, user agent, caching, attribution, licensing position |
-| [`PYRAMID-OF-INTENTS.md`](./PYRAMID-OF-INTENTS.md) | Why the project exists, the intents implementation must serve, and a verified snapshot of what holds today and what does not |
-| [`TODOS.md`](./TODOS.md) | The backlog. Every item names the intent it serves, its priority, and a definition of done |
+| [`docs/overview.md`](docs/overview.md) | What the project is, how it feels to use, and what it doesn't try to be |
+| [`docs/architecture.md`](docs/architecture.md) | How the layers fit together, and what happens from launch to first paint |
+| [`docs/tools.md`](docs/tools.md) | The six tools, what each one remembers, and how they link to each other |
+| [`docs/bridge-protocol.md`](docs/bridge-protocol.md) | The metrics format and the Dart APIs behind each tool |
+| [`docs/development.md`](docs/development.md) | Setup, commands, where builds land, and fixes for common problems |
+| [`docs/testing.md`](docs/testing.md) | The test suites, what each one covers, and what isn't tested |
+| [`docs/map-sources.md`](docs/map-sources.md) | Where tiles come from, how they're cached, and attribution |
+| [`PYRAMID-OF-INTENTS.md`](./PYRAMID-OF-INTENTS.md) | The rules a change should respect, plus a checked snapshot of what works now and what doesn't |
+| [`TODOS.md`](./TODOS.md) | What's left. Every item points at an intent and says what "done" means |
 
 ## Architecture
 
@@ -62,33 +82,35 @@ lib/ui/            the six views, shared widgets, shell, status bar
 lib/main.dart      composition root: boot cache → hydrate → sessions → shell
 ```
 
-* **One record.** `WorkspaceController` owns the outline, editor draft, and each
-  tool's persisted session; sessions hold what never reaches disk.
-* **Durability.** The boot cache is `…/cache/chainnotes/workspace.json`; the
-  durable copy is `…/share/chainnotes/native-workspace/workspace.json`
-  (`getApplicationCacheDirectory` / `getApplicationSupportDirectory`). Writes are
-  debounced 250 ms, cache first then durable, through a temp file + rename with a
-  4 MiB cap. The durable copy wins on boot unless it is strictly older than the
-  boot cache.
-* **Metrics contract.** `lib/core/metrics/summarize_bridge.dart` defines the
-  request envelope (`[[number, …]]`, comma or newline separators) and
-  error codes (`INVALID_REQUEST`, `EMPTY_INPUT`, `INVALID_VALUE`,
-  `ENGINE_FAILED`, `BUFFER_TOO_SMALL`, `OUT_OF_MEMORY`).
-* **All six stay mounted** in an `IndexedStack`, so scroll position, rendered
-  PDF pages, and the map canvas survive a tool switch.
-* **A restart restores the record** — last view, outline, drafts, and each
-  tool's recorded session. It does not reopen the document itself; the PDF and
-  the image folder are offered from their remembered lists ([TODO-016](./TODOS.md)).
+* **One shared record.** `WorkspaceController` holds the outline, the editor
+  draft, and each tool's saved session; sessions only hold what doesn't need
+  saving.
+* **Saving that survives restarts.** The boot copy is
+  `…/cache/chainnotes/workspace.json`; the durable copy is
+  `…/share/chainnotes/native-workspace/workspace.json`
+  (`getApplicationCacheDirectory` / `getApplicationSupportDirectory`). Edits
+  wait 250 ms, write the cache first then the durable file, using a temp file
+  plus rename with a 4 MiB limit. On boot the durable copy wins unless it's
+  strictly older than the boot copy.
+* **Metrics format.** `lib/core/metrics/summarize_bridge.dart` reads
+  `[[number, …]]` (commas or newlines between values) and replies with either
+  the stats or an error code (`INVALID_REQUEST`, `EMPTY_INPUT`,
+  `INVALID_VALUE`, `ENGINE_FAILED`, `BUFFER_TOO_SMALL`, `OUT_OF_MEMORY`).
+* **All six views stay open** in an `IndexedStack`, so scroll position, open
+  PDF pages, and the map stay put when you switch.
+* **Restarting brings the record back** — last view, outline, drafts, and each
+  tool's session. It doesn't reopen the files themselves; the PDF and image
+  folder are picked again from their remembered lists ([TODO-016](./TODOS.md)).
 
 ---
 
 ## Repository map
 
-Every source file, grouped by layer. A map that lists only the interesting
-files cannot answer "where does X live", which is the only reason to have one.
-[`test/readme_test.dart`](test/readme_test.dart) checks this list against the
-filesystem in both directions: a new module that is not listed fails the suite,
-and a listed file that has been deleted fails it too.
+Every source file, grouped by layer. A list of just the interesting files
+can't answer "where does X live", so this lists everything.
+[`test/readme_test.dart`](test/readme_test.dart) keeps it in sync both ways:
+a new file that's not listed fails the tests, and a listed file that's gone
+fails them too.
 
 ```text
 --- application ---------------------------------------------------
@@ -161,49 +183,47 @@ TODOS.md                       The backlog, every item linked to an intent
 
 ## Known gaps
 
-The honest list, with owners in [`TODOS.md`](./TODOS.md):
+Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
 
-* Nothing flushes on window close, so typing inside the 250 ms debounce window
-  can be lost ([TODO-003](./TODOS.md)).
-* The save label reports writes this session, so it reads `not saved` right
-  after a successful restore ([TODO-004](./TODOS.md)).
-* CI exists as `.github/workflows/ci.yml` (analyze + test + Linux debug
-  build) but has no observed green run yet ([TODO-005](./TODOS.md)).
-* Interaction coverage is core flows only: TOC declare/reorder/undo/filter,
-  editor binding, PDF attach, outline transfers, places, lightbox stepping
-  (`test/tools_interaction_test.dart`). Denied-location, real-PDF, and
-  picker flows remain untested ([TODO-007](./TODOS.md)).
-* The release binary was built but first-run latency was not measured
-  ([TODO-015](./TODOS.md)).
-* The store does not `fsync` the file before renaming nor the directory
-  after it, so a power loss may lose the last write even after `ok`
-  ([TODO-009](./TODOS.md)). Crash-during-write is safe (old or new file,
-  never half-written).
-* The metrics engine and bridge codec have no production UI caller
+* Closing the window inside the 250 ms save window can lose what you just
+  typed ([TODO-003](./TODOS.md)).
+* The save label counts saves made in this run, so it says `not saved` right
+  after a restore until you type again ([TODO-004](./TODOS.md)).
+* CI is set up as `.github/workflows/ci.yml` (analyze + test + Linux debug
+  build) but hasn't been seen passing on GitHub yet ([TODO-005](./TODOS.md)).
+* Tests cover the main flows: outline add/move/undo/filter, editor syncing,
+  PDF attach, outline import/export, places, lightbox stepping
+  (`test/tools_interaction_test.dart`). Picker cancellations, real-PDF
+  rendering, and some picker flows aren't covered ([TODO-007](./TODOS.md)).
+* The release app builds but nobody timed first launch ([TODO-015](./TODOS.md)).
+* The store flushes but doesn't `fsync` the file or its folder, so losing
+  power can drop the last save even after `ok` ([TODO-009](./TODOS.md)).
+  Crashing mid-write is safe (you get the old or the new file, never half of
+  one).
+* The metrics engine and bridge code have no button in the UI that calls them
   ([TODO-011](./TODOS.md)).
 
 ## Notes
 
-* Map tiles come from OpenStreetMap with a declared user agent, cached in
-  memory (512 tiles) and on disk (2000 files / 64 MiB, oldest-first eviction;
-  `lib/core/map/tile_source.dart`, `lib/core/map/tile_policy.dart`); at most
-  4 concurrent fetches with 100 ms spacing and backoff on 429/5xx. See
-  [`docs/map-sources.md`](docs/map-sources.md) for the attribution and policy
-  position.
-* Android/iOS declare `INTERNET` and the location permissions the Locate action
+* Map tiles come from OpenStreetMap with a real user agent, kept in memory
+  (512 tiles) and on disk (2000 files / 64 MiB, oldest dropped first;
+  `lib/core/map/tile_source.dart`, `lib/core/map/tile_policy.dart`). At most
+  4 downloads at once, 100 ms apart, backing off on 429/5xx. Attribution and
+  the full reasoning are in [`docs/map-sources.md`](docs/map-sources.md).
+* Android and iOS list `INTERNET` and the location permissions that Locate
   needs; iOS and macOS explain location use in their `Info.plist` files.
-* The PDF reader renders with `pdfx` through the `PdfOpener` seam
-  (`lib/sessions/pdf_backend.dart`) — except on Linux, where `pdfx` ships no
-  backend, so opening reports `PDF rendering is not available on this
-  platform.` instead of touching the renderer; the outline parser
-  (`lib/core/pdf/pdf_outline.dart`) is pure Dart and works everywhere, but
-  `pdfx` exposes no outline API, so headings come from it and fail soft with
-  a readable message.
-* Platforms: Linux desktop is verified (debug + release); Web release builds.
-  Windows/macOS/Android/iOS scaffolding exists but was not built here.
-  Measured 2026-10-07: `build/linux/x64/release/bundle` 25 M,
+* PDF pages render with `pdfx` through the `PdfOpener` seam
+  (`lib/sessions/pdf_backend.dart`) — except on Linux, where `pdfx` has no
+  backend, so opening says `PDF rendering is not available on this
+  platform.` instead of trying. Reading outlines
+  (`lib/core/pdf/pdf_outline.dart`) is plain Dart and works everywhere, but
+  `pdfx` doesn't expose outlines, so headings come from there and fall back
+  to a readable message when they can't be read.
+* Platforms: Linux is what gets tested (debug + release); Web release builds
+  too. Windows, macOS, Android, and iOS folders exist but weren't built here.
+  Sizes on 2026-10-07: `build/linux/x64/release/bundle` 25 M,
   `build/linux/x64/debug/bundle` 126 M, `build/web` 41 M.
-* The metrics engine and bridge codec are portable library code with no
-  production UI caller; the `googleMap` record section is kept for import
-  compatibility with no view; Map Explorer intentionally has one basemap with
-  a colour filter and no place search (no second network client).
+* The metrics engine and bridge code are small libraries with no UI button;
+  the `googleMap` section is kept so imports don't lose data, with no view;
+  Map Explorer has one basemap with a tint and no place search (that would
+  need a second network client).
