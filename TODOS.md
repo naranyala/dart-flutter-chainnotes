@@ -20,45 +20,8 @@ below.
 
 ## P1 — Make the workspace dependable
 
-### TODO-016 — Reopen the remembered document and folder on restart
-
-- **Intent:** I2.1, I1.1
-- **Priority:** P1
-- **Work:** A restart restores the record (PDF path, page, zoom, remembered
-  lists; image folder, selected group, lightbox index; map viewport and
-  places) but reopens neither the PDF document nor the image folder — the
-  reader shows a `REMEMBERED` list instead. Either reload the remembered
-  document/folder automatically (with the recorded page/zoom/group applied and
-  a clear sentence when the file is gone), or record the decision to keep the
-  manual pick and stop implying an automatic restore.
-- **Done when:** After a restart with a remembered PDF and folder, the same
-  document page and folder group are showing without a manual pick — or the
-  README, the pyramid snapshot, and the views all state that the pick is
-  manual, and the status lines say so.
-
-### TODO-005 — See a green CI run for analyze, test, and the Linux build
-
-- **Intent:** I1.5, I4.1, I4.3
-- **Priority:** P1
-- **Work:** `.github/workflows/ci.yml` already runs `flutter analyze`,
-  `flutter test`, and `flutter build linux --debug` on Flutter 3.47.5, but it
-  has never been observed green on GitHub. Push it, watch one run go green,
-  and add the status badge (or a recorded run URL) to the README.
-- **Done when:** A pull request that breaks a test or an analyzer rule is
-  rejected by CI, and the badge/status matches a green run on a clean checkout.
-
-### TODO-007 — Cover the remaining interaction flows
-
-- **Intent:** I4.1, I2.2
-- **Priority:** P1
-- **Work:** `test/tools_interaction_test.dart` (12 tests) covers TOC, editor,
-  links, places, and lightbox; `test/package_integration_test.dart` (14
-  tests) covers picker flows via `FakeFileService` (TOC export/import, editor
-  import/export, image directory, places CSV), locate via `FakeLocations`
-  (denied, disabled, fix), and the PDF backend seam. Still thin: picker
-  *cancel* paths (user dismisses the dialog) have no widget coverage.
-- **Done when:** Cancel-path tests exist for at least the TOC import/export
-  and PDF open flows, and `flutter test` remains the single command.
+No open P1 items. TODO-005, TODO-007, and TODO-016 closed with evidence
+below.
 
 ## P2 — Keep it maintainable and portable
 
@@ -70,26 +33,69 @@ below.
   `Info.plist` carries the location usage string, and the README names the
   supported set. Still unbuilt here: Windows (needs a Windows host),
   macOS/iOS (need Xcode), and location exercised on
-  a real device. The Android APK build was skipped (long, unattended); if it
-  ships, build it and record it. Build each remaining target that ships and
-  record it.
+  a real device. Android was attempted on 2026-10-09: an SDK exists at
+  `~/Android/Sdk` (build-tools 36.0.0, platform android-37) but its NDK
+  `28.2.13676358` directory is empty (no `source.properties`, so AGP fails
+  with CXX1101) and there are no `cmdline-tools` to repair it with — fixing
+  the host SDK is out of scope, so the APK stays unbuilt. Build each
+  remaining target that ships and record it.
 - **Done when:** Every platform listed as supported builds from a clean
   checkout, and the README names exactly those.
 
 ## P3 — Optional polish and open decisions
 
-### TODO-015 — Measure release first-run latency
+No open P3 items. TODO-015 closed with evidence below.
+
+## Closed (with evidence)
+
+### TODO-015 — Measure release first-run latency — DONE
 
 - **Intent:** I0.1, I2.4
 - **Priority:** P3
-- **Work:** The Linux release bundle builds (25 M) and its size is recorded in
-  the README, but tree/shader warm-up behaviour on first launch was never
-  measured. Launch the release bundle on a display, note startup behaviour,
-  and record it.
-- **Done when:** First-run latency of the release bundle is recorded in the
-  README alongside the size.
+- **Evidence:** `flutter build linux --release` then launched the bundle three
+  times on a display (temporary first-frame probe, reverted after measuring):
+  ~3.5 s cold, ~3.5 s, ~3.2 s warm from launch to first frame, including
+  reopening the remembered PDF. Numbers and the grown bundle size (33 M, was
+  25 M before the PDFium renderer) recorded in the README Platforms note.
 
-## Closed (with evidence)
+### TODO-007 — Cover the remaining interaction flows — DONE
+
+- **Intent:** I4.1, I2.2
+- **Priority:** P1
+- **Work:** picker *cancel* paths (user dismisses the dialog) had no widget
+  coverage.
+- **Evidence:** `test/tools_interaction_test.dart` gains four cancel-path
+  widget tests — TOC JSON import leaves the outline alone, TOC JSON export
+  writes nothing, combine-to-PDF reports `No folder chosen.`, and PDF open
+  leaves the reader closed — all driven through the shared `FakeFileService`
+  (moved to `test/fakes.dart` so both suites use it). Full suite: 128/128,
+  `flutter analyze` clean.
+
+### TODO-005 — See a green CI run for analyze, test, and the Linux build — DONE
+
+- **Intent:** I1.5, I4.1, I4.3
+- **Priority:** P1
+- **Evidence:** four consecutive green runs on `main`, latest
+  [run 37877115162](https://github.com/naranyala/dart-flutter-chainnotes/actions/runs/37877115162)
+  (`7d635ab`, success) running exactly `flutter analyze`, `flutter test`,
+  and `flutter build linux --debug` on Flutter 3.47.5; a failing step fails
+  its job, so a breaking change fails the run. Status badge added at the top
+  of the README.
+
+### TODO-016 — Reopen the remembered document and folder on restart — DONE
+
+- **Intent:** I2.1, I1.1
+- **Priority:** P1
+- **Work:** `reopenRemembered()` in `lib/main.dart` runs after the sessions
+  are built and before `runApp`: the remembered PDF reopens at its recorded
+  page/zoom, the remembered image folder rescans with its recorded group put
+  back when it still exists. A remembered path whose file is gone is
+  forgotten with a `…is gone — pick it again…` sentence in that tool's
+  status line.
+- **Evidence:** `test/boot_reopen_test.dart` (5 tests) — PDF reopens with its
+  recorded page, gone PDF forgotten with a sentence, folder reopens with its
+  recorded group, gone folder reports without crashing, nothing remembered
+  means nothing happens. Full suite: 133/133, `flutter analyze` clean.
 
 ### TODO-017 — Decide the Linux PDF rendering story — DONE
 
@@ -104,7 +110,7 @@ below.
 - **Evidence:** `test/package_integration_test.dart` gains a real open +
   render test (a `pdf`-package PDF opened and rendered to PNG bytes through
   `PdfrxOpener`); on-device run opened a 3-page sample (`Page 1 of 3`) and
-  rendered page 1 to a 14 KB PNG with visible content. Full suite: 124/124,
+  rendered page 1 to a 14 KB PNG with visible content. Full suite: 128/128,
   `flutter analyze` clean.
 
 ### TODO-001 — Hydrate from the boot cache record, not a fresh snapshot — DONE

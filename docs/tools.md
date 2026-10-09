@@ -107,9 +107,9 @@ reader is a plain `ListView` of pages, so scrolling feels normal.
 steps from **60% to 250%** (`renderZoom`), with the percentage in the toolbar.
 
 **Remembering.** The record keeps `path`, `name`, `page`, `zoom`, and recent
-paths. It doesn't reopen the file on its own: after a restart you get a
-`REMEMBERED` list, and picking from it restores the saved page.
-[TODO-016](../TODOS.md) tracks whether that should become automatic.
+paths — and a restart reopens the remembered document at the recorded page
+and zoom. A remembered file that is gone is forgotten with a sentence saying
+so. [TODO-016](../TODOS.md) tracked closing that gap.
 
 **Headings.** The outline (read by `lib/core/pdf/pdf_outline.dart`, which does
 its best with `/Outlines`, object streams, and the page tree) shows in a
@@ -130,8 +130,9 @@ parent folder name and remembers the path. Two limits keep big folders sane —
 `N images (the scan reached its limit)` instead of quietly cutting off.
 
 **Looking around.** Folder groups with counts on the side, a thumbnail grid,
-and a lightbox you can step through with the keyboard. The selected group and
-lightbox position are saved, so you land back where you were.
+and a lightbox you can step through with the keyboard. A restart reopens the
+remembered folder with its recorded group put back; a folder that is gone is
+forgotten with a sentence saying so.
 
 **Linking.** `Select outline item` on an image ties it to a heading — the
 other half of the editor's image link, stored as `links.images`.

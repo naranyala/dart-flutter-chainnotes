@@ -5,7 +5,7 @@ could be wrong. Nothing below the smoke test needs a screen, a network, or a
 real file on disk.
 
 ```sh
-flutter test                                          # everything, 116 feature + 8 guard
+flutter test                                          # everything, 125 feature + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # should stay clean too
@@ -20,9 +20,10 @@ flutter analyze                                       # should stay clean too
 | `test/metrics_test.dart` | 12 | Welford engine: precision, and bad values never corrupt state |
 | `test/bridge_test.dart` | 11 | Request parsing, success shape, error codes and envelope |
 | `test/tile_policy_test.dart` | 9 | Tile limits (how many at once, spacing, backoff) and old-first disk cleanup |
-| `test/tools_interaction_test.dart` | 19 | Outline add/move/undo/filter, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, lightbox |
+| `test/tools_interaction_test.dart` | 23 | Outline add/move/undo/filter, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, picker cancellations, lightbox |
 | `test/package_integration_test.dart` | 15 | Pickers with fakes, location denied/disabled/fix, PDF rendering and outline reading, open paths, plus a real `pdfrx` open-and-render on Linux |
 | `test/app_smoke_test.dart` | 3 | The window opens with the real footer, all six views render, the menu navbar spans the window, and the menu button goes home |
+| `test/boot_reopen_test.dart` | 5 | Restart reopens the remembered PDF/folder; gone paths are forgotten with a sentence |
 
 The pattern throughout: every layer can be tested **without the one above
 it**. Core tests need no widgets, widget tests need no network or file
@@ -98,9 +99,9 @@ asserts the menu navbar spans the full window width at 1600 px.
 
 | Gap | What it means |
 | --- | --- |
-| Main flows only | Pickers, locate, and open paths are covered; picker cancellations are thin — [TODO-007](../TODOS.md) |
+| Main flows only | Pickers, locate, open paths, and picker cancellations (TOC import/export/combine, PDF open) are covered; image-folder and map-file cancellations are not — [TODO-007](../TODOS.md) |
 | PDF rendering | `pdfrx` opens and renders a real PDF on Linux (skips only where the PDFium native asset is missing); `pdfx` paths elsewhere are seam-tested with fakes |
-| CI hasn't gone green | The workflow exists but hasn't been seen passing on GitHub — [TODO-005](../TODOS.md) |
+| CI is green | The workflow runs analyze, test, and the Linux debug build on every push — [TODO-005](../TODOS.md) |
 | No network or tiles | `TileCache` never hits HTTP in tests; failure paths are unit-tested only |
 | No power-loss test | The rename order is checked, but `fsync` behaviour isn't proven — it's documented, not tested |
 

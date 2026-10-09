@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:chainnotes/app/services.dart';
 import 'package:chainnotes/app/workspace_controller.dart';
 import 'package:chainnotes/core/map/tile_source.dart';
 import 'package:chainnotes/core/workspace/workspace_models.dart';
@@ -13,18 +14,26 @@ import 'package:chainnotes/sessions/map_session.dart';
 import 'package:chainnotes/sessions/pdf_session.dart';
 import 'package:chainnotes/ui/editor_view.dart';
 import 'package:chainnotes/ui/map_view.dart';
+import 'package:chainnotes/ui/pdf_view.dart';
 import 'package:chainnotes/ui/toc_view.dart';
+
+import 'fakes.dart';
 
 WorkspaceController freshController() =>
     WorkspaceController(boot: normalizeWorkspace(null));
 
-Widget tocHarness(WorkspaceController controller) {
+Widget tocHarness(WorkspaceController controller, {FileService? files}) {
   final pdf = PdfSession(controller);
   final images = ImageSession(controller);
   final map = MapSession(controller);
   return MaterialApp(
     home: Scaffold(
-      body: TocView(controller: controller, pdf: pdf, images: images, map: map),
+      body: TocView(
+          controller: controller,
+          pdf: pdf,
+          images: images,
+          map: map,
+          files: files ?? const FileService()),
     ),
   );
 }
@@ -160,6 +169,51 @@ void main() {
       ], 'doc.pdf');
       expect(added, 1);
       expect(controller.tocItems.single.links.pdfPage, 2);
+    });
+
+    testWidgets('cancelling the JSON import leaves the outline alone',
+        (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Keep', level: 1);
+      await tester
+          .pumpWidget(tocHarness(controller, files: FakeFileService()));
+      await tester.pump();
+      await tester.tap(find.text('Import…'));
+      await tester.pump();
+      expect(controller.tocItems.single.title, 'Keep');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cancelling the JSON export writes nothing', (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Keep', level: 1);
+      await tester
+          .pumpWidget(tocHarness(controller, files: FakeFileService()));
+      await tester.pump();
+      final before = controller.tocStatus.message;
+      await tester.tap(find.text('Export…'));
+      await tester.pump();
+      expect(controller.tocStatus.message, before);
+      expect(find.text('Outline exported.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cancelling combine-to-PDF says no folder was chosen',
+        (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Keep', level: 1);
+      await tester
+          .pumpWidget(tocHarness(controller, files: FakeFileService()));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Combine to PDF'));
+      await tester.pump();
+      await tester.tap(find.text('Combine to PDF'));
+      await tester.pump();
+      expect(controller.tocStatus.message, 'No folder chosen.');
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -351,6 +405,28 @@ void main() {
       await tester.pump();
       expect(controller.map.places.single.lat, 11);
       expect(controller.map.places.single.lon, 22);
+    });
+  });
+
+  group('PDF Reader picker', () {
+    testWidgets('cancelling the open leaves the reader closed',
+        (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final pdf = PdfSession(controller);
+      addTearDown(pdf.dispose);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: PdfView(
+                controller: controller,
+                pdf: pdf,
+                files: FakeFileService())),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('Browse files'));
+      await tester.pump();
+      expect(pdf.isOpen, isFalse);
+      expect(tester.takeException(), isNull);
     });
   });
 

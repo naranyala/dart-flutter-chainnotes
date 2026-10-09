@@ -1,5 +1,7 @@
 # chainnotes
 
+[![ci](https://github.com/naranyala/dart-flutter-chainnotes/actions/workflows/ci.yml/badge.svg)](https://github.com/naranyala/dart-flutter-chainnotes/actions/workflows/ci.yml)
+
 **Chainnotes is a Flutter desktop workspace for outline-driven reading and
 note-taking: six tools working over one shared, persisted record.**
 
@@ -44,10 +46,10 @@ flutter run -d linux
 ```
 
 `flutter analyze` should come back clean and `flutter test` should pass —
-right now that's **116 feature tests across ten suites (124 total with the
+right now that's **125 feature tests across ten suites (133 total with the
 docs guard)**.
 Checked on 2026-10-08 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
-clean, 124/124 tests, `flutter build linux --debug` works. For setup steps,
+clean, 133/133 tests, `flutter build linux --debug` works. For setup steps,
 the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
@@ -101,9 +103,11 @@ lib/main.dart      composition root: boot cache → hydrate → sessions → she
   crossfade with a short slide in the menu direction (jump cuts under reduced
   motion). Sidebars collapse to a top panel on narrow windows, and the system
   back button returns to the menu instead of leaving the app.
-* **Restarting brings the record back** — last view, outline, drafts, and each
-  tool's session. It doesn't reopen the files themselves; the PDF and image
-  folder are picked again from their remembered lists ([TODO-016](./TODOS.md)).
+* **A restart restores the record and reopens what it remembers** — last
+  view, outline, drafts, each tool's session, plus the PDF at its recorded
+  page/zoom and the image folder at its recorded group. A remembered file
+  that is gone is forgotten with a sentence saying so
+  ([TODO-016](./TODOS.md)).
 
 ---
 
@@ -166,11 +170,13 @@ test/boot_composition_test.dart   The composition root wiring (3)
 test/metrics_test.dart            Engine precision and rejected values (12)
 test/bridge_test.dart             Protocol parser, envelope, codes (11)
 test/tile_policy_test.dart        Request gate, eviction, cache constants (9)
-test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, lightbox (19)
+test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, picker cancels, lightbox (23)
 test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render (15)
 test/app_smoke_test.dart          Shell, real footer, navbar width, menu button (3)
 test/readme_test.dart             Keeps this map, the docs index, and the
                                   README's commands in step with the tree
+test/fakes.dart                   Shared fakes: scripted file pickers
+test/boot_reopen_test.dart        Restart reopens the remembered PDF/folder (5)
 
 --- documentation -------------------------------------------------------
 docs/README.md                 Documentation index and the honesty guard
@@ -193,13 +199,7 @@ Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
   typed ([TODO-003](./TODOS.md)).
 * The save label counts saves made in this run, so it says `not saved` right
   after a restore until you type again ([TODO-004](./TODOS.md)).
-* CI is set up as `.github/workflows/ci.yml` (analyze + test + Linux debug
-  build) but hasn't been seen passing on GitHub yet ([TODO-005](./TODOS.md)).
-* Tests cover the main flows: outline add/move/undo/filter, editor syncing,
-  PDF attach, outline import/export, places, place stepping, go-to-coordinates,
-  lightbox stepping (`test/tools_interaction_test.dart`). Picker-cancellation
-  paths and some picker flows aren't covered ([TODO-007](./TODOS.md)).
-* The release app builds but nobody timed first launch ([TODO-015](./TODOS.md)).
+* The release app builds and first launch is timed (see Platforms above).
 * The store flushes but doesn't `fsync` the file or its folder, so losing
   power can drop the last save even after `ok` ([TODO-009](./TODOS.md)).
   Crashing mid-write is safe (you get the old or the new file, never half of
@@ -224,8 +224,10 @@ Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
   from it and fall back to a readable message when they can't be read.
 * Platforms: Linux is what gets tested (debug + release); Web release builds
   too. Windows, macOS, Android, and iOS folders exist but weren't built here.
-  Sizes on 2026-10-07: `build/linux/x64/release/bundle` 25 M,
-  `build/linux/x64/debug/bundle` 126 M, `build/web` 41 M.
+  Measured 2026-10-09: `build/linux/x64/release/bundle` 33 M (was 25 M before
+  the PDFium renderer landed), `build/linux/x64/debug/bundle` 126 M,
+  `build/web` 41 M. Release launch to first frame on this machine: ~3.5 s
+  cold, ~3.2 s warm (includes reopening the remembered PDF).
 * The metrics engine and bridge code are small libraries with no UI button;
   the `googleMap` section is kept so imports don't lose data, with no view;
   Map Explorer has one basemap with a tint and no place search (that would

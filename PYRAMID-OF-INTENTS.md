@@ -193,7 +193,7 @@ changeable independently behind small contracts.
 ## Current state snapshot
 
 Verified against the tree and a full run on 2026-10-08 — `flutter analyze`
-(no issues), `flutter test` (124/124: 116 functional + 8 docs guard),
+(no issues), `flutter test` (133/133: 125 functional + 8 docs guard),
 `flutter build linux --debug`, `flutter build linux --release`,
 `flutter build web --release`, `tool/smoke.sh --build --timeout=10`
 (Smoke OK, exit 124 = stayed up) — rather than against these entries. Every
@@ -221,9 +221,13 @@ Already present and working:
   reads `saved to disk`; empty and damaged durable files leave `none` with
   (for damaged) an `INVALID_CONTENT` report — **I2.3**. Locked by three tests
   in `test/persistence_test.dart` (TODO-004 closed).
+- Reopened sessions: `reopenRemembered` in `lib/main.dart` reopens the
+  remembered PDF at its recorded page/zoom and the image folder at its
+  recorded group; gone paths are forgotten with a sentence — **I2.1**.
+  Locked by `test/boot_reopen_test.dart` (TODO-016 closed).
 - 116 tests: metrics (12), bridge (11), store (13), normalizer (14),
   persistence merge + modes (17), boot composition (3), tile gate + eviction
-  (9), tool interactions (19), third-party seams (15), shell smoke (3), docs
+  (9), tool interactions (23), third-party seams (15), shell smoke (3), docs
   guard (8) — **I4.1**.
 - Third-party seams with fakes: `FakeFileService` picker flows, `LocationQuery`
   over `geolocator` (denied/disabled/fix tested), `PdfOpener` over `pdfx` /
@@ -240,14 +244,15 @@ Already present and working:
   flush but no fsync; crash-safe, power-loss may lose the last write —
   **I1.3**, **I4.3** (TODO-009 closed).
 - CI workflow `.github/workflows/ci.yml` (analyze + test + Linux debug build
-  on Flutter 3.47.5); `tool/smoke.sh` builds and runs the real binary with
-  isolated XDG dirs — **I4.1**, **I2.4** (TODO-006 closed; TODO-005 awaits a
-  green run).
+  on Flutter 3.47.5), green on `main` with a README badge; `tool/smoke.sh`
+  builds and runs the real binary with isolated XDG dirs — **I4.1**,
+  **I2.4** (TODO-005 and TODO-006 closed).
 - Permission entries: `INTERNET` + coarse/fine location on Android,
   `NSLocationWhenInUseUsageDescription` on iOS and macOS — **I3.3**.
-- Release accounting: Linux release bundle 25 M, debug 126 M, web 41 M;
+- Release accounting: Linux release bundle 33 M (25 M before PDFium),
+  debug 126 M, web 41 M; launch to first frame ~3.5 s cold, ~3.2 s warm;
   Linux debug + release and web release build here; Windows/macOS/Android/iOS
-  scaffolding unbuilt — **I4.3** (TODO-010, TODO-015 narrowed).
+  scaffolding unbuilt — **I4.3** (TODO-010 narrowed; TODO-015 closed).
 - Decisions stated in the README: metrics/bridge are library code with no UI
   caller (TODO-011 closed), `googleMap` is import-compat only with no view
   (TODO-013 closed), one basemap + filter and no place search (TODO-014
@@ -255,17 +260,12 @@ Already present and working:
 
 Known gaps, in the order they should be closed:
 
-- **No observed green CI run.** The workflow exists but has never been seen
-  green on GitHub, and there is no status badge — **I4.1**, **I2.4**.
-  TODO-005.
-- **Interaction coverage is core flows only.** Picker cancel paths and
-  `pdfx`-side rendering have no tests — **I4.1**. TODO-007.
+- **Interaction coverage is core flows plus picker cancellations.** TOC
+  import/export/combine and PDF-open cancel paths are tested; image-folder
+  and map-file cancellations are not — **I4.1**. (TODO-007 closed.)
 - **Unbuilt platforms.** Windows, macOS, Android, and iOS targets exist with
   plugin dependencies unverified there, and location has never been exercised
   on a device — **I4.3**. TODO-010.
-- **First-run latency unmeasured.** The release bundle builds, but tree/shader
-  warm-up behaviour on first launch was never recorded — **I0.1**, **I2.4**.
-  TODO-015.
 - **Remembered documents are not reopened.** A restart restores the record
   (path, page, zoom, folder, viewport) but the PDF and the image folder must
   be picked again from their remembered lists — **I2.1**. TODO-016.

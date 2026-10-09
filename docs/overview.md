@@ -50,12 +50,9 @@ Headings can point outward: to a page in the **PDF Reader**, to images in the
 
 Because everything shares one record, the menu badges stay up to date, and a
 restart brings back your last view, your outline, your drafts, and each tool's
-session — which document was open and where, which folder you were browsing,
-where the map was.
-
-One thing a restart doesn't do yet: it doesn't reopen the PDF or the image
-folder itself. It shows them in a remembered list and you pick them again.
-That's deliberate for now — see [TODO-016](../TODOS.md).
+session — the open document at its page, the browsed folder at its group,
+where the map was. A remembered file that is gone is forgotten with a
+sentence saying so.
 
 ### The map
 
@@ -84,7 +81,7 @@ More concretely:
 
 ## Where things stand
 
-Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 124/124,
+Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 133/133,
 `flutter build linux --debug`, `--release`, and `flutter build web --release`
 all pass. The full story with reasons is in the
 [current state snapshot](../PYRAMID-OF-INTENTS.md#current-state-snapshot).
@@ -97,18 +94,15 @@ What works:
   saving with a flush on hide/close, Welford metrics, the bridge format,
   map projection, bounded tile fetching, a PDF outline reader, and an
   outline-to-PDF writer.
-- 106 feature tests plus 8 docs tests, including widget tests and fakes for
+- 125 feature tests plus 8 docs tests, including widget tests and fakes for
   pickers, location, and PDF opening that run without a device.
 
 Things worth knowing before you build on it:
 
 | Gap | What it means |
 | --- | --- |
-| CI hasn't gone green yet | The workflow exists but hasn't been seen passing on GitHub. TODO-005 |
-| Tests cover the main flows | Picker cancellations aren't covered. TODO-007 |
+| Tests cover the main flows | Image-folder and map-file picker cancellations aren't covered |
 | Some platforms unbuilt | Windows, macOS, Android, and iOS targets exist but weren't built here. TODO-010 |
-| Startup time unmeasured | The release bundle builds (25 M) but nobody timed first launch. TODO-015 |
-| Last file is remembered, not reopened | Restart restores the record, you still pick the PDF/folder again. TODO-016 |
 
 Follow-ups live in [`TODOS.md`](../TODOS.md), each one linked to an intent in
 [`PYRAMID-OF-INTENTS.md`](../PYRAMID-OF-INTENTS.md).
