@@ -44,6 +44,13 @@ class MenuView extends StatelessWidget {
     return 'Pick a section to start writing';
   }
 
+  String get _summary {
+    final items = controller.tocItems.length;
+    final words = countWords(controller.editorContent);
+    if (items == 0 && words == 0) return 'Empty workspace';
+    return '$items section${items == 1 ? '' : 's'} · $words words';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cards = <_ToolCardData>[
@@ -79,70 +86,105 @@ class MenuView extends StatelessWidget {
       ),
     ];
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(-0.4, -0.6),
-          radius: 1.2,
-          colors: [Color(0xFF1B2029), WorkspaceColors.background],
-        ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1180),
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(-0.4, -0.6),
+                radius: 1.2,
+                colors: [Color(0xFF1B2029), WorkspaceColors.background],
+              ),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const w.Eyebrow('APPLICATIONS'),
-                const SizedBox(height: 8),
-                Text(
-                  'What would you like to open?',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Choose a local tool to get started.',
-                  style: TextStyle(color: WorkspaceColors.textMuted),
-                ),
-                const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Phones get one wide card per row so badges never clip;
-                    // tablets get two, wide screens get the full row.
-                    final narrow = constraints.maxWidth < 560;
-                    final columns = narrow
-                        ? 1
-                        : constraints.maxWidth < 900
-                            ? 2
-                            : constraints.maxWidth < 1200
-                                ? 3
-                                : cards.length;
-                    return GridView.count(
-                      crossAxisCount: columns,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 18,
-                      crossAxisSpacing: 18,
-                      childAspectRatio: narrow ? 3.2 : 2.4,
+                _navbar(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final card in cards)
-                          _ToolCard(
-                            data: card,
-                            onTap: () => controller.selectView(card.view),
-                          ),
+                        const w.Eyebrow('APPLICATIONS'),
+                        const SizedBox(height: 8),
+                        Text(
+                          'What would you like to open?',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Choose a local tool to get started.',
+                          style: TextStyle(color: WorkspaceColors.textMuted),
+                        ),
+                        const SizedBox(height: 24),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            // Cards fill the whole width at any window size:
+                            // one column on phones, two on narrow windows,
+                            // three beyond that.
+                            final narrow = constraints.maxWidth < 560;
+                            final columns = narrow
+                                ? 1
+                                : constraints.maxWidth < 1100
+                                    ? 2
+                                    : 3;
+                            return GridView.count(
+                              crossAxisCount: columns,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              mainAxisSpacing: 18,
+                              crossAxisSpacing: 18,
+                              childAspectRatio: narrow ? 3.2 : 2.4,
+                              children: [
+                                for (final card in cards)
+                                  _ToolCard(
+                                    data: card,
+                                    onTap: () =>
+                                        controller.selectView(card.view),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
                       ],
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+    );
+  }
+
+  /// Full-width top bar matching the other tools' toolbars, so the menu opens
+  /// on chrome that spans the window instead of floating text.
+  Widget _navbar() {
+    return Container(
+      key: const Key('menu-navbar'),
+      constraints: const BoxConstraints(minHeight: topBarHeight),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: WorkspaceColors.surface,
+        border: Border(bottom: BorderSide(color: WorkspaceColors.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          const w.Eyebrow('APPLICATIONS'),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              _summary,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: WorkspaceColors.textMuted,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

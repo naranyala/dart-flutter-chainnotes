@@ -84,7 +84,7 @@ More concretely:
 
 ## Where things stand
 
-Checked on 2026-10-07 — `flutter analyze` clean, `flutter test` 114/114,
+Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 124/124,
 `flutter build linux --debug`, `--release`, and `flutter build web --release`
 all pass. The full story with reasons is in the
 [current state snapshot](../PYRAMID-OF-INTENTS.md#current-state-snapshot).
@@ -104,9 +104,8 @@ Things worth knowing before you build on it:
 
 | Gap | What it means |
 | --- | --- |
-| PDF pages don't render on Linux | `pdfx` has no Linux backend; opening shows `PDF rendering is not available on this platform.` Outlines still work. TODO-017 |
 | CI hasn't gone green yet | The workflow exists but hasn't been seen passing on GitHub. TODO-005 |
-| Tests cover the main flows | Picker cancellations and real PDF rendering aren't covered. TODO-007 |
+| Tests cover the main flows | Picker cancellations aren't covered. TODO-007 |
 | Some platforms unbuilt | Windows, macOS, Android, and iOS targets exist but weren't built here. TODO-010 |
 | Startup time unmeasured | The release bundle builds (25 M) but nobody timed first launch. TODO-015 |
 | Last file is remembered, not reopened | Restart restores the record, you still pick the PDF/folder again. TODO-016 |

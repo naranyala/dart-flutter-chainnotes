@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride, TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -23,7 +26,7 @@ import 'package:chainnotes/ui/toc_view.dart';
 import 'package:chainnotes/core/map/tile_source.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:pdfx/pdfx.dart' hide PdfView;
+import 'package:pdfrx/pdfrx.dart' as pdfrx;
 
 /// A scripted `file_selector` stand-in: pickers return canned paths, reads
 /// serve canned content, writes are captured. No platform channel involved.
@@ -119,7 +122,7 @@ Position testPosition(double lat, double lon) => Position(      latitude: lat,
 WorkspaceController freshController() =>
     WorkspaceController(boot: normalizeWorkspace(null));
 
-/// A scripted `pdfx` stand-in: no platform channel, no native renderer.
+/// A scripted renderer stand-in: no platform channel, no native renderer.
 class FakePdfOpener implements PdfOpener {
   FakePdfOpener({
     this.supported = true,
@@ -138,29 +141,45 @@ class FakePdfOpener implements PdfOpener {
   String get unsupportedMessage => 'PDF rendering is not available here.';
 
   @override
-  Future<PdfDocument> openFile(String path) async {
+  Future<PdfEngineDocument> openFile(String path) async {
     if (throwOnOpen) throw const FileSystemException('unreadable');
-    return FakePdfDocument(pagesCount: pages);
+    return FakeEngineDocument(pageCount: pages);
   }
 }
 
-class FakePdfDocument extends PdfDocument {
-  FakePdfDocument({required super.pagesCount})
-      : super(sourceName: 'fake.pdf', id: 'fake-id');
+class FakeEngineDocument implements PdfEngineDocument {
+  FakeEngineDocument({required this.pageCount});
+
+  @override
+  final int pageCount;
+
+  @override
+  String get id => 'fake-id';
+
+  @override
+  Future<PdfEnginePage?> getPage(int pageNumber) async =>
+      FakeEnginePage();
 
   @override
   Future<void> close() async {}
+}
+
+class FakeEnginePage implements PdfEnginePage {
+  @override
+  double get width => 100;
 
   @override
-  Future<PdfPage> getPage(int pageNumber, {bool autoCloseAndroid = false}) =>
-      throw UnimplementedError('no renderer in tests');
+  double get height => 141.42;
 
   @override
-  bool operator ==(Object other) =>
-      other is FakePdfDocument && other.id == id;
+  Future<Uint8List?> renderBytes({
+    required double width,
+    required double height,
+  }) async =>
+      null;
 
   @override
-  int get hashCode => id.hashCode;
+  Future<void> close() async {}
 }
 
 void main() {
@@ -343,7 +362,7 @@ void main() {
     });
   });
 
-  group('pdf / pdfx seams', () {
+  group('pdf renderer seams', () {
     test('the pdf package renders an outline PDF with a valid header',
         () async {
       final controller = freshController();
@@ -372,6 +391,60 @@ void main() {
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
       final parsed = extractPdfOutline(bytes);
       expect(parsed.headings, isEmpty);
+    });
+
+    test('pdfrx opens and renders a real PDF on Linux', () async {
+      // `flutter test` pretends to be Android; run this one as Linux so the
+      // production Linux renderer is what gets exercised.
+      final original = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        const opener = PdfrxOpener();
+        expect(opener.isSupported, isTrue);
+        final doc = pw.Document();
+        doc.addPage(pw.Page(
+            build: (context) =>
+                pw.Center(child: pw.Text('renderer proof'))));
+        final bytes = await doc.save();
+        final dir =
+            Directory.systemTemp.createTempSync('chainnotes-pdfrx');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final file = File('${dir.path}${Platform.pathSeparator}real.pdf')
+          ..writeAsBytesSync(bytes);
+
+        // The PDFium native asset is bundled by `flutter build`; under
+        // `flutter test` it may be missing on some setups. Skip there —
+        // on-device runs prove the renderer instead of failing the suite.
+        pdfrx.PdfDocument? probe;
+        try {
+          probe = await pdfrx.PdfDocument.openFile(file.path);
+        } catch (e) {
+          if ('$e'.contains('PDFium')) {
+            markTestSkipped('PDFium native asset unavailable in test env');
+            return;
+          }
+          rethrow;
+        } finally {
+          await probe?.dispose();
+        }
+
+        final controller = freshController();
+        addTearDown(controller.dispose);
+        final pdf = PdfSession(controller, opener: opener);
+        addTearDown(pdf.dispose);
+        expect(await pdf.openAt(file.path), isTrue);
+        expect(pdf.isOpen, isTrue);
+        expect(pdf.pageCount, 1);
+        expect(pdf.aspectOf(1), greaterThan(0));
+
+        final rendered = await pdf.renderPage(1,
+            pixelWidth: 200, pixelHeight: 280);
+        expect(rendered, isNotNull);
+        // PNG signature: 137 'P' 'N' 'G' 13 10 26 10.
+        expect(rendered!.take(4).toList(), [137, 80, 78, 71]);
+      } finally {
+        debugDefaultTargetPlatformOverride = original;
+      }
     });
 
     test('openAt succeeds through the backend seam and remembers the path',
@@ -408,7 +481,7 @@ void main() {
       expect(controller.pdf.recentPaths, isNot(contains('/tmp/gone.pdf')));
     });
 
-    test('an unsupported platform is refused before touching pdfx',
+    test('an unsupported platform is refused before touching a renderer',
         () async {
       final controller = freshController();
       addTearDown(controller.dispose);

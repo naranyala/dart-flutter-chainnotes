@@ -19,7 +19,6 @@ import 'ui/menu_view.dart';
 import 'ui/pdf_view.dart';
 import 'ui/shell.dart';
 import 'ui/toc_view.dart';
-import 'ui/widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -161,7 +160,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   }
 
   void _flushWorkspace() => widget.controller.flushNow();
-  Widget get _footer => _StatusBar(
+  Widget get _footer => WorkspaceStatusBar(
         controller: widget.controller,
         signal: widget.persistenceSignal,
         persistence: widget.persistence,
@@ -215,59 +214,5 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     widget.tiles.dispose();
     widget.pdf.closeDocument();
     super.dispose();
-  }
-}
-
-/// The shared bottom bar: the save mode, the workspace report pill, and which
-/// tool is on screen.
-class _StatusBar extends StatelessWidget {
-  const _StatusBar({
-    required this.controller,
-    required this.signal,
-    required this.persistence,
-    required this.onDismissReport,
-  });
-
-  final WorkspaceController controller;
-  final ChangeNotifier signal;
-  final WorkspacePersistence persistence;
-  final VoidCallback onDismissReport;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([controller, signal]),
-      builder: (context, _) {
-        final pending = persistence.hasPendingSave;
-        return Row(
-          children: [
-            Text(
-              pending ? 'Saving…' : controller.saveLabel,
-              key: const Key('save-mode'),
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: WorkspaceColors.textMuted,
-              ),
-            ),
-            const SizedBox(width: 12),
-            WorkspaceReportPill(
-              controller: controller,
-              onDismiss: onDismissReport,
-            ),
-            const Spacer(),
-            Text(
-              controller.view.toUpperCase(),
-              key: const Key('active-view'),
-              style: const TextStyle(
-                fontSize: 11,
-                letterSpacing: 1.2,
-                color: WorkspaceColors.textMuted,
-              ),
-            ),
-            MenuGridButton(controller: controller),
-          ],
-        );
-      },
-    );
   }
 }

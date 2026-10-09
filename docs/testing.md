@@ -5,7 +5,7 @@ could be wrong. Nothing below the smoke test needs a screen, a network, or a
 real file on disk.
 
 ```sh
-flutter test                                          # everything, 107 feature + 8 guard
+flutter test                                          # everything, 116 feature + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # should stay clean too
@@ -20,9 +20,9 @@ flutter analyze                                       # should stay clean too
 | `test/metrics_test.dart` | 12 | Welford engine: precision, and bad values never corrupt state |
 | `test/bridge_test.dart` | 11 | Request parsing, success shape, error codes and envelope |
 | `test/tile_policy_test.dart` | 9 | Tile limits (how many at once, spacing, backoff) and old-first disk cleanup |
-| `test/tools_interaction_test.dart` | 12 | Outline add/move/undo/filter, editor syncing, PDF attach, outline import/export, places, lightbox |
-| `test/package_integration_test.dart` | 14 | Pickers with fakes, location denied/disabled/fix, PDF rendering and outline reading, open paths |
-| `test/app_smoke_test.dart` | 2 | The window opens, all six views render, and the menu button goes home |
+| `test/tools_interaction_test.dart` | 19 | Outline add/move/undo/filter, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, lightbox |
+| `test/package_integration_test.dart` | 15 | Pickers with fakes, location denied/disabled/fix, PDF rendering and outline reading, open paths, plus a real `pdfrx` open-and-render on Linux |
+| `test/app_smoke_test.dart` | 3 | The window opens with the real footer, all six views render, the menu navbar spans the window, and the menu button goes home |
 
 The pattern throughout: every layer can be tested **without the one above
 it**. Core tests need no widgets, widget tests need no network or file
@@ -85,18 +85,21 @@ holds. The format itself is in
 
 ### Window smoke test — `app_smoke_test.dart`
 
-The only test that builds widgets. It opens the real composition root, checks
-the menu, then walks **all six views** — menu, outline, editor, PDF, images,
-map — making sure each renders without a Flutter error and nothing overflows.
-That overflow check earned its keep: it caught a `DropdownButtonFormField`
-that was too wide for its toolbar on the first run ([TODO-002](../TODOS.md)).
+The only tests that build widgets. The first opens the real composition root
+with the real status-bar footer, checks the menu, then walks **all six
+views** — menu, outline, editor, PDF, images, map — making sure each renders
+without a Flutter error and nothing overflows. That overflow check earned its
+keep twice: it caught a `DropdownButtonFormField` that was too wide for its
+toolbar on the first run ([TODO-002](../TODOS.md)), and a status-bar `Row`
+nested in another `Row` that killed the first frame on device. The second
+asserts the menu navbar spans the full window width at 1600 px.
 
 ## What isn't tested
 
 | Gap | What it means |
 | --- | --- |
 | Main flows only | Pickers, locate, and open paths are covered; picker cancellations are thin — [TODO-007](../TODOS.md) |
-| No real PDF rendering here | `pdfx` has no Linux backend, so rendering is tested through the seam only, never with a real renderer — [TODO-017](../TODOS.md) |
+| PDF rendering | `pdfrx` opens and renders a real PDF on Linux (skips only where the PDFium native asset is missing); `pdfx` paths elsewhere are seam-tested with fakes |
 | CI hasn't gone green | The workflow exists but hasn't been seen passing on GitHub — [TODO-005](../TODOS.md) |
 | No network or tiles | `TileCache` never hits HTTP in tests; failure paths are unit-tested only |
 | No power-loss test | The rename order is checked, but `fsync` behaviour isn't proven — it's documented, not tested |

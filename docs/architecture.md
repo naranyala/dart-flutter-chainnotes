@@ -22,7 +22,7 @@ imports from the layers below, never the other way around.
 
 ```text
                        lib/ui  (one view per tool)
-        menu · toc · editor · pdf · images · map  ─── shell (IndexedStack)
+        menu · toc · editor · pdf · images · map  ─── shell (animated stack)
                     │                 │
                     │ reads/writes    │ transient state
                     ▼                 ▼
@@ -132,7 +132,7 @@ tests still pass. That actually happened once, and
 | PDF Reader | `lib/ui/pdf_view.dart` | `PdfSession` plus saved page/zoom/link target |
 | Image Viewer | `lib/ui/images_view.dart` | `ImageSession` plus link target |
 | Map Explorer | `lib/ui/map_view.dart` | `MapSession` plus places, filter, and tiles |
-| Shell | `lib/ui/shell.dart` | All six in an `IndexedStack`, status bar below |
+| Shell | `lib/ui/shell.dart` | All six in an animated stack (crossfade + slide), status bar below |
 | Widgets | `lib/ui/widgets.dart` | Shared toolbar, status, and eyebrow styles |
 
 What each tool actually does is in [the tools guide](tools.md).

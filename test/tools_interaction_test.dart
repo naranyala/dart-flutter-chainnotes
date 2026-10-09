@@ -194,6 +194,164 @@ void main() {
       await tester.pump();
       expect(controller.map.places, isEmpty);
     });
+
+    test('stepping wraps around both ends and reports position', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      controller.addPlace(lat: 10, lon: 10, label: 'Alpha');
+      controller.addPlace(lat: 20, lon: 20, label: 'Beta');
+      // addPlace re-tops, so the order is [Beta, Alpha].
+      map.stepPlace(1);
+      expect(map.selectedPlaceId, controller.map.places[0].id);
+      expect(map.status.message, 'Viewing “Beta” (1 of 2).');
+      map.stepPlace(1);
+      expect(map.selectedPlaceId, controller.map.places[1].id);
+      expect(map.status.message, 'Viewing “Alpha” (2 of 2).');
+      map.stepPlace(1);
+      expect(map.selectedPlaceId, controller.map.places[0].id);
+      map.stepPlace(-1);
+      expect(map.selectedPlaceId, controller.map.places[1].id);
+    });
+
+    test('stepping with no places explains itself', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      map.stepPlace(1);
+      expect(map.status.isError, isTrue);
+      expect(map.selectedPlaceId, isNull);
+    });
+
+    test('typed coordinates fly the pin there or explain why not', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      expect(map.goToCoordinates('48.85', '2.35'), isTrue);
+      expect(map.pin!.lat, closeTo(48.85, 1e-9));
+      expect(map.pin!.lon, closeTo(2.35, 1e-9));
+      expect(map.flyLat, closeTo(48.85, 1e-9));
+      expect(map.flyLon, closeTo(2.35, 1e-9));
+      expect(map.goToCoordinates('abc', '2.35'), isFalse);
+      expect(map.status.isError, isTrue);
+      expect(map.goToCoordinates('100', '0'), isFalse);
+      expect(map.status.isError, isTrue);
+      expect(map.goToCoordinates('', ''), isFalse);
+      expect(map.status.isError, isTrue);
+    });
+
+    test('saving the centre stores the viewport and selects it', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      map.setCenter(11, 22);
+      map.saveCenterAsPlace();
+      expect(controller.map.places.single.lat, 11);
+      expect(controller.map.places.single.lon, 22);
+      expect(map.selectedPlaceId, controller.map.places.single.id);
+    });
+
+    testWidgets('the stepper walks saved places and wraps', (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      final tiles = TileCache(
+        cacheDirectory:
+            Directory.systemTemp.createTempSync('chainnotes-tiles-step'),
+        client: MockClient((_) async => http.Response('gone', 404)),
+      );
+      addTearDown(tiles.dispose);
+      controller.addPlace(lat: 10, lon: 10, label: 'Alpha');
+      controller.addPlace(lat: 20, lon: 20, label: 'Beta');
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: MapView(controller: controller, map: map, tiles: tiles)),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('2 saved'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('place-next')));
+      await tester.pump();
+      expect(find.text('1 of 2'), findsOneWidget);
+      expect(map.selectedPlaceId, controller.map.places[0].id);
+      await tester.tap(find.byKey(const Key('place-next')));
+      await tester.pump();
+      expect(find.text('2 of 2'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('place-next')));
+      await tester.pump();
+      expect(find.text('1 of 2'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('place-prev')));
+      await tester.pump();
+      expect(find.text('2 of 2'), findsOneWidget);
+    });
+
+    testWidgets('going to typed coordinates drops a pin from the sidebar',
+        (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      final tiles = TileCache(
+        cacheDirectory:
+            Directory.systemTemp.createTempSync('chainnotes-tiles-goto'),
+        client: MockClient((_) async => http.Response('gone', 404)),
+      );
+      addTearDown(tiles.dispose);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: MapView(controller: controller, map: map, tiles: tiles)),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.ensureVisible(find.byKey(const Key('goto-button')));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const Key('lat-input')), '48.85');
+      await tester.enterText(
+          find.byKey(const Key('lon-input')), '2.35');
+      await tester.tap(find.byKey(const Key('goto-button')));
+      await tester.pump();
+      expect(map.pin, isNotNull);
+      expect(map.pin!.lat, closeTo(48.85, 1e-9));
+      expect(find.textContaining('48.85'), findsWidgets);
+      await tester.enterText(find.byKey(const Key('lat-input')), 'abc');
+      await tester.ensureVisible(find.byKey(const Key('goto-button')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('goto-button')));
+      await tester.pump();
+      expect(map.status.isError, isTrue);
+      expect(
+          find.text(
+              'Enter coordinates as numbers, like 48.8566, 2.3522.'),
+          findsWidgets);
+    });
+
+    testWidgets('saving the centre stores the viewport as a place',
+        (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      final tiles = TileCache(
+        cacheDirectory:
+            Directory.systemTemp.createTempSync('chainnotes-tiles-centre'),
+        client: MockClient((_) async => http.Response('gone', 404)),
+      );
+      addTearDown(tiles.dispose);
+      map.setCenter(11, 22);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: MapView(controller: controller, map: map, tiles: tiles)),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const Key('save-centre')));
+      await tester.pump();
+      expect(controller.map.places.single.lat, 11);
+      expect(controller.map.places.single.lon, 22);
+    });
   });
 
   group('Image lightbox', () {

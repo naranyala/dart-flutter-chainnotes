@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../app/services.dart';
 import '../app/theme.dart';
@@ -79,6 +80,8 @@ class _MapViewState extends State<MapView>
   late final Ticker _ticker;
   final Stopwatch _clock = Stopwatch();
   final TextEditingController _renameController = TextEditingController();
+  final TextEditingController _latController = TextEditingController();
+  final TextEditingController _lonController = TextEditingController();
   String? _renamingPlaceId;
 
   Size _size = Size.zero;
@@ -103,6 +106,8 @@ class _MapViewState extends State<MapView>
     session.removeListener(_onSessionChanged);
     controller.removeListener(_onSessionChanged);
     _renameController.dispose();
+    _latController.dispose();
+    _lonController.dispose();
     super.dispose();
   }
 
@@ -295,6 +300,9 @@ class _MapViewState extends State<MapView>
               // Phones: places panel goes on top with a capped height so
               // the canvas keeps a usable size.
               return Column(
+                // Stretch so the toolbars fill the window width instead of
+                // shrink-wrapping in the centre.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _toolbar(),
                   _optionsBar(),
@@ -316,6 +324,9 @@ class _MapViewState extends State<MapView>
               );
             }
             return Column(
+              // Stretch so the toolbars fill the window width instead of
+              // shrink-wrapping in the centre.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _toolbar(),
                 _optionsBar(),
@@ -834,6 +845,7 @@ class _MapViewState extends State<MapView>
               w.ToolbarButton(label: 'Import', onPressed: _importPlaces),
             ],
           ),
+          if (controller.map.places.length >= 2) _placeStepper(),
           const SizedBox(height: 8),
           w.StatusLine(
             id: 'map-place-status',
@@ -852,6 +864,10 @@ class _MapViewState extends State<MapView>
                 index < controller.map.places.length;
                 index++)
               _placeRow(controller.map.places[index], index),
+          const SizedBox(height: 18),
+          _positionPanel(),
+          const SizedBox(height: 18),
+          _goToPanel(),
           const SizedBox(height: 18),
           Row(
             children: [
@@ -921,6 +937,197 @@ class _MapViewState extends State<MapView>
         ],
       ),
     );
+  }
+
+  int get _selectedPlaceIndex {
+    final places = controller.map.places;
+    final index =
+        places.indexWhere((place) => place.id == session.selectedPlaceId);
+    return index < 0 ? 0 : index;
+  }
+
+  /// Hops between saved places without hunting the list or the canvas:
+  /// `‹ Prev` / `Next ›` wrap around both ends and fly to each place.
+  Widget _placeStepper() {
+    final places = controller.map.places;
+    final selected = session.selectedPlaceId != null &&
+        places.any((place) => place.id == session.selectedPlaceId);
+    final label = selected
+        ? '${_selectedPlaceIndex + 1} of ${places.length}'
+        : '${places.length} saved';
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: w.ToolbarButton(
+              key: const Key('place-prev'),
+              label: '‹ Prev',
+              onPressed: () {
+                session.stepPlace(-1);
+                setState(() {});
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              key: const Key('place-position'),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12, color: WorkspaceColors.textMuted),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: w.ToolbarButton(
+              key: const Key('place-next'),
+              label: 'Next ›',
+              onPressed: () {
+                session.stepPlace(1);
+                setState(() {});
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The live position: the dropped pin with copy/clear actions, or the map
+  /// centre with a one-tap save when there is no pin.
+  Widget _positionPanel() {
+    final pin = session.pin;
+    final text = pin != null
+        ? formatCoordinates(pin)
+        : formatCoordinates(
+            Location(lat: session.centerLat, lon: session.centerLon));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: w.Eyebrow(pin != null ? 'PIN' : 'MAP CENTRE'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                key: const Key('position-readout'),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ),
+            IconButton(
+              key: const Key('position-copy'),
+              tooltip: 'Copy coordinates',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints:
+                  const BoxConstraints(minWidth: 40, minHeight: 40),
+              icon: const Icon(Icons.copy_outlined, size: 16),
+              onPressed: () => _copyCoords(text),
+            ),
+            if (pin != null)
+              IconButton(
+                key: const Key('pin-clear'),
+                tooltip: 'Clear pin',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 40, minHeight: 40),
+                icon: const Icon(Icons.close, size: 16),
+                onPressed: () {
+                  session.clearPin();
+                  setState(() {});
+                },
+              )
+            else
+              Expanded(
+                child: w.ToolbarButton(
+                  key: const Key('save-centre'),
+                  label: 'Save centre',
+                  variant: w.ToolbarVariant.primary,
+                  onPressed: () {
+                    session.saveCenterAsPlace();
+                    setState(() {});
+                  },
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _copyCoords(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    session.setStatus('Copied $text.');
+    if (mounted) setState(() {});
+  }
+
+  /// Jumps to typed coordinates: two fields, one button, and a sentence
+  /// when the text is not a usable latitude/longitude pair.
+  Widget _goToPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const w.Eyebrow('GO TO COORDINATES'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: const Key('lat-input'),
+                controller: _latController,
+                keyboardType: const TextInputType.numberWithOptions(
+                    signed: true, decimal: true),
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  hintText: 'Latitude',
+                  counterText: '',
+                ),
+                onFieldSubmitted: (_) => _goToTyped(),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: TextFormField(
+                key: const Key('lon-input'),
+                controller: _lonController,
+                keyboardType: const TextInputType.numberWithOptions(
+                    signed: true, decimal: true),
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  hintText: 'Longitude',
+                  counterText: '',
+                ),
+                onFieldSubmitted: (_) => _goToTyped(),
+              ),
+            ),
+            const SizedBox(width: 6),
+            w.ToolbarButton(
+              key: const Key('goto-button'),
+              label: 'Go',
+              variant: w.ToolbarVariant.primary,
+              onPressed: _goToTyped,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _goToTyped() {
+    session.goToCoordinates(_latController.text, _lonController.text);
+    setState(() {});
   }
 
   Widget _placeRow(Place place, int index) {

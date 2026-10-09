@@ -29,7 +29,7 @@ Run these from the project root.
 | --- | --- |
 | `flutter pub get` | Fetch packages (`path_provider`, `file_selector`, `http`, `pdf`, `pdfx`, `geolocator`) |
 | `flutter analyze` | Static analysis with `analysis_options.yaml`. **Should come back clean** |
-| `flutter test` | Run everything (107 feature tests, 115 total with the docs guard) |
+| `flutter test` | Run everything (116 feature tests, 124 total with the docs guard) |
 | `flutter test test/bridge_test.dart` | Run a single suite while you're working |
 | `flutter test --reporter expanded` | Same run, one line per test |
 | `flutter run -d linux` | Run on your machine with hot reload |
@@ -97,10 +97,9 @@ fails with the full suite, look for state shared between tests.
 are installed.
 
 **A plugin fails to build.** Delete `build/` and `.dart_tool/`, then run
-`flutter pub get` again. Note that `pdfx` has no Linux backend (see the PDF
-note in the README): the app builds and runs on Linux, but opening a page
-says `PDF rendering is not available on this platform.` there. There's no
-native code of ours in the build.
+`flutter pub get` again. PDF rendering uses `pdfx` on mobile/desktop except
+Linux, and `pdfrx` (PDFium via native assets) on Linux — see the PDF note in
+the README. There's no native code of ours in the build.
 
 **Tiles don't load.** See [map sources](map-sources.md#troubleshooting): host,
 user agent, and proxy/VPN notes are all there.

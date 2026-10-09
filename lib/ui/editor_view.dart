@@ -130,6 +130,8 @@ class _EditorViewState extends State<EditorView> {
         final active = controller.activeTocItem;
         if (active == null) return _gate();
         return Column(
+          // Stretch so the toolbar fills the window width.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _toolbar(active),
             Expanded(

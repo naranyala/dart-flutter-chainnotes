@@ -66,6 +66,9 @@ class _ImagesViewState extends State<ImagesView> {
             final body = session.hasImages ? _grid() : _empty();
             if (narrow) {
               return Column(
+                // Stretch so the toolbar fills the window width instead of
+                // shrink-wrapping in the centre.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _toolbar(),
                   if (session.sidebarOpen)
@@ -86,6 +89,9 @@ class _ImagesViewState extends State<ImagesView> {
               );
             }
             return Column(
+              // Stretch so the toolbar fills the window width instead of
+              // shrink-wrapping in the centre.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _toolbar(),
                 Expanded(

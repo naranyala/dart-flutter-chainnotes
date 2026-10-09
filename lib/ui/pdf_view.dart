@@ -188,6 +188,9 @@ class _PdfViewState extends State<PdfView> {
             final body = pdf.isOpen ? _reader() : _empty();
             if (narrow) {
               return Column(
+                // Stretch so the toolbar fills the window width instead of
+                // shrink-wrapping in the centre.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _toolbar(),
                   if (pdf.sidebarOpen)
@@ -208,6 +211,9 @@ class _PdfViewState extends State<PdfView> {
               );
             }
             return Column(
+              // Stretch so the toolbar fills the window width instead of
+              // shrink-wrapping in the centre.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _toolbar(),
                 Expanded(

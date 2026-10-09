@@ -192,8 +192,8 @@ changeable independently behind small contracts.
 
 ## Current state snapshot
 
-Verified against the tree and a full run on 2026-10-07 — `flutter analyze`
-(no issues), `flutter test` (115/115: 107 functional + 8 docs guard),
+Verified against the tree and a full run on 2026-10-08 — `flutter analyze`
+(no issues), `flutter test` (124/124: 116 functional + 8 docs guard),
 `flutter build linux --debug`, `flutter build linux --release`,
 `flutter build web --release`, `tool/smoke.sh --build --timeout=10`
 (Smoke OK, exit 124 = stayed up) — rather than against these entries. Every
@@ -201,8 +201,9 @@ claim below was checked by running it.
 
 Already present and working:
 
-- Six tools mounted in an `IndexedStack` with a shared status bar, all built
-  from one composition root in `lib/main.dart` — **I1.1**, **I2.1**.
+- Six tools in an animated stack (200 ms crossfade + slide) with a shared
+  status bar, all built from one composition root in `lib/main.dart` —
+  **I1.1**, **I2.1**.
 - Pure-Dart core: schema + normalizer, 4 MiB atomic store, debounce/merge
   persistence with dispose-flush and post-hydrate `native` mode, Welford
   metrics, bridge envelope codec, Web-Mercator projection, bounded OSM tile
@@ -220,15 +221,16 @@ Already present and working:
   reads `saved to disk`; empty and damaged durable files leave `none` with
   (for damaged) an `INVALID_CONTENT` report — **I2.3**. Locked by three tests
   in `test/persistence_test.dart` (TODO-004 closed).
-- 114 tests: metrics (12), bridge (11), store (13), normalizer (14),
+- 116 tests: metrics (12), bridge (11), store (13), normalizer (14),
   persistence merge + modes (17), boot composition (3), tile gate + eviction
-  (9), tool interactions (12), third-party seams (14), shell smoke (1), docs
+  (9), tool interactions (19), third-party seams (15), shell smoke (3), docs
   guard (8) — **I4.1**.
 - Third-party seams with fakes: `FakeFileService` picker flows, `LocationQuery`
-  over `geolocator` (denied/disabled/fix tested), `PdfOpener` over `pdfx`
-  (unsupported-platform refusal tested without touching the renderer),
-  `pdf`-package rendering and outline parsing headlessly — **I3.4**, **I4.1**.
-  Audit finding: the unused `image` dependency was removed from `pubspec.yaml`.
+  over `geolocator` (denied/disabled/fix tested), `PdfOpener` over `pdfx` /
+  `pdfrx` (unsupported-platform refusal and a real Linux open-and-render
+  tested without touching a mobile renderer), `pdf`-package rendering and
+  outline parsing headlessly — **I3.4**, **I4.1**. Audit finding: the unused
+  `image` dependency was removed from `pubspec.yaml`.
 - Map Explorer with pan/zoom, colour filters, grid, cursor readout, scale bar,
   saved places, GeoJSON layers, distance/bearing, locate, and a bounded tile
   cache (4 concurrent, 100 ms spacing, 429/5xx backoff, 2000 files / 64 MiB
@@ -256,9 +258,8 @@ Known gaps, in the order they should be closed:
 - **No observed green CI run.** The workflow exists but has never been seen
   green on GitHub, and there is no status badge — **I4.1**, **I2.4**.
   TODO-005.
-- **Interaction coverage is core flows only.** Denied-location permission,
-  real-PDF rendering, and file-picker flows have no tests — **I4.1**.
-  TODO-007.
+- **Interaction coverage is core flows only.** Picker cancel paths and
+  `pdfx`-side rendering have no tests — **I4.1**. TODO-007.
 - **Unbuilt platforms.** Windows, macOS, Android, and iOS targets exist with
   plugin dependencies unverified there, and location has never been exercised
   on a device — **I4.3**. TODO-010.
@@ -268,11 +269,10 @@ Known gaps, in the order they should be closed:
 - **Remembered documents are not reopened.** A restart restores the record
   (path, page, zoom, folder, viewport) but the PDF and the image folder must
   be picked again from their remembered lists — **I2.1**. TODO-016.
-- **PDF pages do not render on Linux.** `pdfx` ships no Linux backend and its
-  detached platform assert escapes any caller-side `try/catch`; the `PdfOpener`
-  seam refuses with a precise sentence before touching the renderer, and
-  outline parsing stays pure Dart — but the product story for the primary
-  platform is undecided — **I4.4**, **I4.3**. TODO-017.
+- **PDF pages render on Linux.** `pdfrx` (PDFium) renders where `pdfx` ships
+  no backend; the `PdfOpener` seam picks per platform behind engine-neutral
+  handles, and outline parsing stays pure Dart — **I4.4**, **I4.3**.
+  (TODO-017 closed).
 
 ## Appendix — how the app is shaped: input → process → output
 

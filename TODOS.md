@@ -79,6 +79,7 @@ below.
 ## P3 — Optional polish and open decisions
 
 ### TODO-015 — Measure release first-run latency
+
 - **Intent:** I0.1, I2.4
 - **Priority:** P3
 - **Work:** The Linux release bundle builds (25 M) and its size is recorded in
@@ -88,24 +89,23 @@ below.
 - **Done when:** First-run latency of the release bundle is recorded in the
   README alongside the size.
 
-### TODO-017 — Decide the Linux PDF rendering story
+## Closed (with evidence)
+
+### TODO-017 — Decide the Linux PDF rendering story — DONE
 
 - **Intent:** I4.4, I4.3
 - **Priority:** P2
-- **Work:** `pdfx` ships native backends for Android, iOS, macOS, and Windows
-  only — no Linux — and its `openFile` fires an unawaited platform assert that
-  no caller-side `try/catch` can contain. `PdfSession` now goes through the
-  `PdfOpener` seam (`lib/sessions/pdf_backend.dart`): unsupported platforms
-  get `PDF rendering is not available on this platform.` without touching
-  `pdfx`, outline parsing stays pure Dart everywhere, and fakes cover the
-  open paths in `test/package_integration_test.dart`. Decide the product
-  story for the primary platform: adopt a renderer with a Linux backend,
-  shell out to a system viewer, or keep document-closed-on-Linux (headings and
-  TOC import still work from parsed bytes) as the stated position.
-- **Done when:** The README, the pyramid snapshot, and the PDF Reader agree on
-  what opening a document does on Linux, and the chosen path has a test.
-
-## Closed (with evidence)
+- **Decision:** adopted a renderer with a Linux backend — `pdfrx` (PDFium via
+  native assets) on Linux, `pdfx` everywhere else. The `PdfOpener` seam
+  (`lib/sessions/pdf_backend.dart`) now hides engine-neutral
+  `PdfEngineDocument`/`PdfEnginePage` handles behind per-platform openers
+  picked by `platformPdfOpener()`; `PdfSession` renders through them, so no
+  view code changed.
+- **Evidence:** `test/package_integration_test.dart` gains a real open +
+  render test (a `pdf`-package PDF opened and rendered to PNG bytes through
+  `PdfrxOpener`); on-device run opened a 3-page sample (`Page 1 of 3`) and
+  rendered page 1 to a 14 KB PNG with visible content. Full suite: 124/124,
+  `flutter analyze` clean.
 
 ### TODO-001 — Hydrate from the boot cache record, not a fresh snapshot — DONE
 

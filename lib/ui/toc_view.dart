@@ -197,6 +197,9 @@ class _TocViewState extends State<TocView> {
       builder: (context, _) {
         final items = controller.filteredTocItems;
         return Column(
+          // Stretch so the toolbar, declare bar, and rows fill the window
+          // width instead of shrink-wrapping in the centre.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _toolbar(),
             if (_lastOutlinePdf != null ||

@@ -16,9 +16,10 @@ a restart live in the record. Here's the split:
 | Image Viewer | `lib/ui/images_view.dart` | `ImageSession` | `images` (path, groups, lightbox) |
 | Map Explorer | `lib/ui/map_view.dart` | `MapSession` | `map`, `googleMap` |
 
-All six stay mounted inside an `IndexedStack` in `lib/ui/shell.dart`, so
-switching tools doesn't rebuild anything — your scroll position, open PDF
-pages, and map stay where they were.
+All six stay mounted in an animated stack in `lib/ui/shell.dart` — a 200 ms
+crossfade with a short slide in the menu direction — so switching tools
+doesn't rebuild anything: scroll position, open PDF pages, and the map stay
+where they were.
 
 ## Launcher
 
@@ -97,9 +98,10 @@ that's just how it counts: [TODO-004](../TODOS.md).
 Opens a document, shows its pages, reads its headings, and remembers where
 you were.
 
-**Opening.** `FileService.chooseFile` → `PdfSession.openAt`. Pages are decoded
-with `pdfx` and rendered as needed into a small cache. The reader is a plain
-`ListView` of pages, so scrolling feels normal.
+**Opening.** `FileService.chooseFile` → `PdfSession.openAt`. Pages are
+decoded by the platform renderer (`pdfx` on mobile and macOS/Windows,
+`pdfrx`/PDFium on Linux) and rendered as needed into a small cache. The
+reader is a plain `ListView` of pages, so scrolling feels normal.
 
 **Controls.** `Previous` / `Next`, a `Page 12 of 80` readout, and zoom in 10%
 steps from **60% to 250%** (`renderZoom`), with the percentage in the toolbar.
@@ -149,10 +151,21 @@ corner (`045° NE · 1.2 km · 18/19`).
 label (`Canvas renderer` / `DOM renderer`) is kept for parity with the
 original.
 
-**Places.** Click to drop a pin, `Save pin` to name it, `Clear` to remove it,
-`Import` for a places file (`.csv` or GeoJSON via `parsePlacesFile`), and
-`Attach location` to tie the pin to the selected heading. Up to 200 places
-are kept, in order.
+**Places.** Long-press to drop a pin, `Save pin` to name it, `Clear` to
+remove all places, `Import` for a places file (`.csv` or GeoJSON via
+`parsePlacesFile`), and `Attach location` to tie the pin to the selected
+heading. Up to 200 places are kept, in order. Tapping a place — in the list
+or its marker on the canvas — flies to it; `‹ Prev` / `Next ›` steps through
+all of them with wraparound and a `2 of 5` readout, so you can hop between
+locations one tap at a time.
+
+**Position.** The sidebar always shows live coordinates — the pin's, or the
+map centre's when there is no pin — with `Copy` for the clipboard, `Clear
+pin`, and `Save centre` to store what the canvas is showing as a place.
+
+**Go to.** Two fields and a `Go` button fly to typed coordinates (`48.8566,
+2.3522`; commas work as decimal separators) and drop the pin there. Anything
+else gets a sentence explaining the format instead of silence.
 
 **Layers.** `Load GeoJSON` draws features over the tiles; `Clear` takes them
 off again.

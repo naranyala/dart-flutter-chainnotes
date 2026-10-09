@@ -28,7 +28,7 @@ match the code that actually runs.
 | **Text Editor** | A draft bound to a selected section. Autosaved per keystroke. |
 | **PDF Reader** | Paged reader with a heading sidebar, remembered session, and attach-page links. |
 | **Image Viewer** | Folder-grouped thumbnail grid with a full-screen lightbox. |
-| **Map Explorer** | OpenStreetMap tiles, colour filters, saved places, GeoJSON layers, distance and bearing, locate. |
+| **Map Explorer** | OpenStreetMap tiles, colour filters, saved places with prev/next stepping, go-to-coordinates, pin/centre tools, GeoJSON layers, distance and bearing, locate. |
 
 The file format also has a reserved `googleMap` section. It loads and saves
 like everything else, but nothing displays it — so workspaces that contain it
@@ -44,10 +44,10 @@ flutter run -d linux
 ```
 
 `flutter analyze` should come back clean and `flutter test` should pass —
-right now that's **107 feature tests across ten suites (115 total with the
+right now that's **116 feature tests across ten suites (124 total with the
 docs guard)**.
-Checked on 2026-10-07 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
-clean, 115/115 tests, `flutter build linux --debug` works. For setup steps,
+Checked on 2026-10-08 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
+clean, 124/124 tests, `flutter build linux --debug` works. For setup steps,
 the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
@@ -96,8 +96,11 @@ lib/main.dart      composition root: boot cache → hydrate → sessions → she
   `[[number, …]]` (commas or newlines between values) and replies with either
   the stats or an error code (`INVALID_REQUEST`, `EMPTY_INPUT`,
   `INVALID_VALUE`, `ENGINE_FAILED`, `BUFFER_TOO_SMALL`, `OUT_OF_MEMORY`).
-* **All six views stay open** in an `IndexedStack`, so scroll position, open
-  PDF pages, and the map stay put when you switch.
+* **All six views stay mounted** in an animated stack, so scroll position, open
+  PDF pages, and the map stay put when you switch. Switching plays a 200 ms
+  crossfade with a short slide in the menu direction (jump cuts under reduced
+  motion). Sidebars collapse to a top panel on narrow windows, and the system
+  back button returns to the menu instead of leaving the app.
 * **Restarting brings the record back** — last view, outline, drafts, and each
   tool's session. It doesn't reopen the files themselves; the PDF and image
   folder are picked again from their remembered lists ([TODO-016](./TODOS.md)).
@@ -140,12 +143,13 @@ lib/core/workspace/workspace_persistence.dart  Debounce, write order, merge,
 
 --- sessions: per-tool transient state -------------------------------
 lib/sessions/pdf_session.dart    Open document, page count, zoom, page cache
-lib/sessions/pdf_backend.dart    PdfOpener seam: pdfx has no Linux backend
+lib/sessions/pdf_backend.dart    PdfOpener seam: pdfx + pdfrx renderers,
+                               picked per platform, over engine-neutral pages
 lib/sessions/image_session.dart  Directory scan, folder groups, lightbox
 lib/sessions/map_session.dart    Viewport, pin, layers, locate, import parsers
 
 --- ui: views ---------------------------------------------------------
-lib/ui/shell.dart             IndexedStack over the six views + status bar
+lib/ui/shell.dart             Animated stack over the six views + status bar
 lib/ui/menu_view.dart         Launcher cards with live badges
 lib/ui/toc_view.dart          Outline spine, links, JSON/PDF transfers
 lib/ui/editor_view.dart       Draft bound to the selected outline item
@@ -162,9 +166,9 @@ test/boot_composition_test.dart   The composition root wiring (3)
 test/metrics_test.dart            Engine precision and rejected values (12)
 test/bridge_test.dart             Protocol parser, envelope, codes (11)
 test/tile_policy_test.dart        Request gate, eviction, cache constants (9)
-test/tools_interaction_test.dart  TOC, editor, links, places, lightbox (12)
-test/package_integration_test.dart  Pickers, locate, pdf seams (14)
-test/app_smoke_test.dart          Mounts the shell, status bar menu button (2)
+test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, lightbox (19)
+test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render (15)
+test/app_smoke_test.dart          Shell, real footer, navbar width, menu button (3)
 test/readme_test.dart             Keeps this map, the docs index, and the
                                   README's commands in step with the tree
 
@@ -192,9 +196,9 @@ Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
 * CI is set up as `.github/workflows/ci.yml` (analyze + test + Linux debug
   build) but hasn't been seen passing on GitHub yet ([TODO-005](./TODOS.md)).
 * Tests cover the main flows: outline add/move/undo/filter, editor syncing,
-  PDF attach, outline import/export, places, lightbox stepping
-  (`test/tools_interaction_test.dart`). Picker cancellations, real-PDF
-  rendering, and some picker flows aren't covered ([TODO-007](./TODOS.md)).
+  PDF attach, outline import/export, places, place stepping, go-to-coordinates,
+  lightbox stepping (`test/tools_interaction_test.dart`). Picker-cancellation
+  paths and some picker flows aren't covered ([TODO-007](./TODOS.md)).
 * The release app builds but nobody timed first launch ([TODO-015](./TODOS.md)).
 * The store flushes but doesn't `fsync` the file or its folder, so losing
   power can drop the last save even after `ok` ([TODO-009](./TODOS.md)).
@@ -212,13 +216,12 @@ Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
   the full reasoning are in [`docs/map-sources.md`](docs/map-sources.md).
 * Android and iOS list `INTERNET` and the location permissions that Locate
   needs; iOS and macOS explain location use in their `Info.plist` files.
-* PDF pages render with `pdfx` through the `PdfOpener` seam
-  (`lib/sessions/pdf_backend.dart`) — except on Linux, where `pdfx` has no
-  backend, so opening says `PDF rendering is not available on this
-  platform.` instead of trying. Reading outlines
-  (`lib/core/pdf/pdf_outline.dart`) is plain Dart and works everywhere, but
-  `pdfx` doesn't expose outlines, so headings come from there and fall back
-  to a readable message when they can't be read.
+* PDF pages render with `pdfx` on Android/iOS/macOS/Windows and with `pdfrx`
+  (PDFium) on Linux, both through the `PdfOpener` seam
+  (`lib/sessions/pdf_backend.dart`), which picks the renderer for the running
+  platform. The outline parser (`lib/core/pdf/pdf_outline.dart`) is plain Dart
+  and works everywhere, but `pdfx` exposes no outline API, so headings come
+  from it and fall back to a readable message when they can't be read.
 * Platforms: Linux is what gets tested (debug + release); Web release builds
   too. Windows, macOS, Android, and iOS folders exist but weren't built here.
   Sizes on 2026-10-07: `build/linux/x64/release/bundle` 25 M,

@@ -166,6 +166,79 @@ class MapSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Steps through the saved places, wrapping around both ends, flying to
+  /// each one. This is how you hop between locations without hunting the
+  /// list or the canvas.
+  void stepPlace(int delta) {
+    final places = controller.map.places;
+    if (places.isEmpty) {
+      setStatus('No saved places yet — save a pin first.', error: true);
+      notifyListeners();
+      return;
+    }
+    final current = places.indexWhere((place) => place.id == selectedPlaceId);
+    final next = current < 0
+        ? (delta >= 0 ? 0 : places.length - 1)
+        : (current + delta) % places.length;
+    selectPlace(places[next]);
+    setStatus(
+        'Viewing “${places[next].label}” (${next + 1} of ${places.length}).');
+    notifyListeners();
+  }
+
+  /// Flies to typed coordinates, dropping the pin there so it can be saved
+  /// or attached like any dropped pin. Returns false (with a status
+  /// sentence) when the text is not a usable latitude/longitude pair.
+  bool goToCoordinates(String latText, String lonText) {
+    double? parse(String raw) {
+      final cleaned = raw.trim().replaceAll(',', '.');
+      if (cleaned.isEmpty) return null;
+      final value = double.tryParse(cleaned);
+      if (value == null || value.isNaN || value.isInfinite) return null;
+      return value;
+    }
+
+    final lat = parse(latText);
+    final lon = parse(lonText);
+    if (lat == null || lon == null) {
+      setStatus('Enter coordinates as numbers, like 48.8566, 2.3522.',
+          error: true);
+      notifyListeners();
+      return false;
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      setStatus('Latitude is −90…90 and longitude is −180…180.',
+          error: true);
+      notifyListeners();
+      return false;
+    }
+    dropPin(lat, lon);
+    flyTo(lat, lon);
+    return true;
+  }
+
+  /// Saves what the canvas is showing right now as a place and selects it.
+  void saveCenterAsPlace() {
+    final label =
+        formatCoordinates(Location(lat: centerLat, lon: centerLon));
+    final place =
+        controller.addPlace(lat: centerLat, lon: centerLon, label: label);
+    if (place == null) {
+      if (controller.map.places.length >= maxSavedPlaces) {
+        setStatus(
+            'The saved places list is full ($maxSavedPlaces places).',
+            error: true);
+      } else {
+        setStatus('The map centre could not be saved.', error: true);
+      }
+      notifyListeners();
+      return;
+    }
+    selectPlace(place);
+    setStatus('Saved “${place.label}”.');
+    notifyListeners();
+  }
+
   bool attachPinToSection() {
     final current = pin;
     if (controller.linkTarget == null) {

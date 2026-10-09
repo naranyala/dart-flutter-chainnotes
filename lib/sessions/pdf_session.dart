@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:pdfx/pdfx.dart';
 
 import '../app/workspace_controller.dart';
 import '../core/pdf/pdf_outline.dart';
@@ -10,13 +9,13 @@ import 'pdf_backend.dart';
 /// The PDF Reader session: the open document, its contents sidebar, the
 /// remembered paths, and the reading position that reaches disk.
 ///
-/// Rendering needs a platform backend (`pdfx` has none for Linux), so opening
-/// goes through [PdfOpener]: unsupported platforms get a precise sentence and
-/// never touch `pdfx`, whose detached platform assert no `try/catch` could
-/// contain.
+/// Rendering needs a platform backend, so opening goes through [PdfOpener]:
+/// `pdfx` on Android/iOS/macOS/Windows, `pdfrx` (PDFium) on Linux.
+/// Unsupported platforms get a precise sentence and never touch a renderer
+/// whose detached platform assert no `try/catch` could contain.
 class PdfSession extends ChangeNotifier {
   PdfSession(this.controller, {PdfOpener? opener})
-      : _opener = opener ?? const PdfxOpener();
+      : _opener = opener ?? platformPdfOpener();
 
   final WorkspaceController controller;
   final PdfOpener _opener;
@@ -24,7 +23,7 @@ class PdfSession extends ChangeNotifier {
   final ToolStatus status = ToolStatus('Open a PDF from your local system.');
   bool sidebarOpen = true;
 
-  PdfDocument? _document;
+  PdfEngineDocument? _document;
   int pageCount = 0;
   String? openPath;
   String openName = '';
@@ -82,7 +81,7 @@ class PdfSession extends ChangeNotifier {
     try {
       final document = await _opener.openFile(path);
       _document = document;
-      pageCount = document.pagesCount;
+      pageCount = document.pageCount;
       openPath = path;
       openName = _baseName(path);
       openSize = 0;
@@ -158,8 +157,9 @@ class PdfSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Renders one page at [pixelWidth] x [pixelHeight]. Results are cached so
-  /// scrolling back does not re-render, and the cache stays bounded.
+  /// Renders one page at [pixelWidth] x [pixelHeight] to PNG bytes. Results
+  /// are cached so scrolling back does not re-render, and the cache stays
+  /// bounded.
   Future<Uint8List?> renderPage(
     int pageNumber, {
     required double pixelWidth,
@@ -173,17 +173,14 @@ class PdfSession extends ChangeNotifier {
     return () async {
       try {
         final page = await document.getPage(pageNumber);
+        if (page == null) return null;
         _aspects[pageNumber] = page.height / page.width;
-        final image = await page.render(
-          width: pixelWidth.roundToDouble().clamp(1, 8192),
-          height: pixelHeight.roundToDouble().clamp(1, 8192),
-          format: PdfPageImageFormat.jpeg,
-          backgroundColor: '#FFFFFF',
-          quality: 85,
+        final data = await page.renderBytes(
+          width: pixelWidth,
+          height: pixelHeight,
         );
         await page.close();
         if (token != _renderToken) return null;
-        final data = image?.bytes;
         if (data == null) return null;
         _rememberPage(pageNumber, data);
         notifyListeners();

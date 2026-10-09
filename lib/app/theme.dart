@@ -17,7 +17,8 @@ abstract final class WorkspaceColors {
 }
 
 const double topBarHeight = 56;
-const double statusBarHeight = 30;
+// Tall enough for the 40px menu button and 32px report dismiss target.
+const double statusBarHeight = 44;
 
 ThemeData buildWorkspaceTheme() {
   final base = ThemeData(
