@@ -28,7 +28,7 @@ match the code that actually runs.
 | **Menu** | Launcher cards with live badges. |
 | **TOC Manager** | The outline. Declare sections, import headings from a PDF, reorder, undo, export/import JSON, combine to a PDF. |
 | **Text Editor** | A draft bound to a selected section. Autosaved per keystroke. |
-| **PDF Reader** | Paged reader with a heading sidebar, remembered session, and attach-page links. |
+| **PDF Reader** | Paged reader (PDFium on Linux), heading sidebar, remembered session, and attach-page links. |
 | **Image Viewer** | Folder-grouped thumbnail grid with a full-screen lightbox. |
 | **Map Explorer** | OpenStreetMap tiles, colour filters, saved places with prev/next stepping, go-to-coordinates, pin/centre tools, GeoJSON layers, distance and bearing, locate. |
 
@@ -46,10 +46,10 @@ flutter run -d linux
 ```
 
 `flutter analyze` should come back clean and `flutter test` should pass —
-right now that's **125 feature tests across ten suites (133 total with the
+right now that's **156 feature tests across thirteen suites (164 total with the
 docs guard)**.
 Checked on 2026-10-08 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
-clean, 133/133 tests, `flutter build linux --debug` works. For setup steps,
+clean, 164/164 tests, `flutter build linux --debug` works. For setup steps,
 the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
@@ -106,8 +106,7 @@ lib/main.dart      composition root: boot cache → hydrate → sessions → she
 * **A restart restores the record and reopens what it remembers** — last
   view, outline, drafts, each tool's session, plus the PDF at its recorded
   page/zoom and the image folder at its recorded group. A remembered file
-  that is gone is forgotten with a sentence saying so
-  ([TODO-016](./TODOS.md)).
+  that is gone is forgotten with a sentence saying so.
 
 ---
 
@@ -165,17 +164,19 @@ lib/ui/widgets.dart           Shared toolbar/status/eyebrow vocabulary
 --- tests ---------------------------------------------------------------
 test/workspace_test.dart          Schema normalization, clamps, helpers (14)
 test/persistence_test.dart        Debounce, write order, merge, save modes (17)
-test/workspace_store_test.dart    Atomic store, size cap, result codes (13)
-test/boot_composition_test.dart   The composition root wiring (3)
+test/workspace_store_test.dart    Atomic store, size cap, result codes, parentOf (14)
+test/boot_composition_test.dart   The composition root wiring, no-store hydrate (4)
 test/metrics_test.dart            Engine precision and rejected values (12)
 test/bridge_test.dart             Protocol parser, envelope, codes (11)
 test/tile_policy_test.dart        Request gate, eviction, cache constants (9)
-test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, picker cancels, lightbox (23)
-test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render (15)
-test/app_smoke_test.dart          Shell, real footer, navbar width, menu button (3)
+test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, picker cancels, swipe, confirms, lightbox (36)
+test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render, file/image limits (25)
+test/app_smoke_test.dart          Shell, real footer, navbar, back button, settled switches (5)
 test/readme_test.dart             Keeps this map, the docs index, and the
                                   README's commands in step with the tree
 test/fakes.dart                   Shared fakes: scripted file pickers
+test/theme_test.dart              Press feedback per platform (1)
+test/tile_cache_test.dart         Tile fetch, decode, memory/disk cache, misses (5)
 test/boot_reopen_test.dart        Restart reopens the remembered PDF/folder (5)
 
 --- documentation -------------------------------------------------------

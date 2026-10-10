@@ -107,13 +107,14 @@ class ReadTextFile {
 }
 
 /// The `suggestFileName` helper: a filesystem-safe stem for an export.
+/// An empty or all-dots title falls back to `outline`, like the PDF writer.
 String suggestFileName(String title, String extension) {
   final cleaned = title
       .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
       .replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '')
       .trim()
       .replaceAll(RegExp(r'\s+'), ' ');
-  final stem = cleaned.isEmpty
+  final stem = cleaned.isEmpty || cleaned.replaceAll('.', '').isEmpty
       ? 'outline'
       : (cleaned.length > 80 ? cleaned.substring(0, 80) : cleaned);
   final withExtension =

@@ -68,8 +68,7 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
   }
 
   int get _index {
-    final index =
-        WorkspaceShell.shellOrder.indexOf(widget.controller.view);
+    final index = WorkspaceShell.shellOrder.indexOf(widget.controller.view);
     return index < 0 ? 0 : index;
   }
 
@@ -96,41 +95,41 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
             if (!didPop && !onMenu) controller.selectView('menu');
           },
           child: Scaffold(
-      backgroundColor: WorkspaceColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
+            backgroundColor: WorkspaceColors.background,
+            body: SafeArea(
+              child: Column(
                 children: [
-                  for (var i = 0; i < widget.views.length; i++)
-                    _FadingChild(
-                      active: i == index,
-                      slideDirection: _slideDirection,
-                      animate: animate,
-                      child: widget.views[i],
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        for (var i = 0; i < widget.views.length; i++)
+                          _FadingChild(
+                            active: i == index,
+                            slideDirection: _slideDirection,
+                            animate: animate,
+                            child: widget.views[i],
+                          ),
+                      ],
                     ),
+                  ),
+                  Container(
+                    height: statusBarHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: const BoxDecoration(
+                      color: WorkspaceColors.surface,
+                      border: Border(
+                        top: BorderSide(color: WorkspaceColors.borderSubtle),
+                      ),
+                    ),
+                    // NOTE: the footer is already a Row (WorkspaceStatusBar). It must
+                    // sit here directly: wrapping it in another Row would hand it
+                    // unbounded width, and its flex children (Spacer/Expanded) would
+                    // throw during layout and kill the first frame.
+                    child: widget.footer,
+                  ),
                 ],
               ),
             ),
-            Container(
-              height: statusBarHeight,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: const BoxDecoration(
-                color: WorkspaceColors.surface,
-                border: Border(
-                  top: BorderSide(color: WorkspaceColors.borderSubtle),
-                ),
-              ),
-              // NOTE: the footer is already a Row (WorkspaceStatusBar). It must
-              // sit here directly: wrapping it in another Row would hand it
-              // unbounded width, and its flex children (Spacer/Expanded) would
-              // throw during layout and kill the first frame.
-              child: widget.footer,
-            ),
-          ],
-        ),
-      ),
           ),
         );
       },
@@ -184,9 +183,9 @@ class _FadingChildState extends State<_FadingChild>
   }
 
   Animation<Offset> _slideFor() => Tween<Offset>(
-        begin: Offset(0.035 * widget.slideDirection, 0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: _fade, curve: Curves.easeOutCubic));
+    begin: Offset(0.035 * widget.slideDirection, 0),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _fade, curve: Curves.easeOutCubic));
 
   @override
   void didUpdateWidget(_FadingChild oldWidget) {

@@ -78,8 +78,10 @@ class _ImagesViewState extends State<ImagesView> {
                         decoration: const BoxDecoration(
                           color: WorkspaceColors.surface,
                           border: Border(
-                              bottom: BorderSide(
-                                  color: WorkspaceColors.borderSubtle)),
+                            bottom: BorderSide(
+                              color: WorkspaceColors.borderSubtle,
+                            ),
+                          ),
                         ),
                         child: _sidebarContent(),
                       ),
@@ -129,10 +131,14 @@ class _ImagesViewState extends State<ImagesView> {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
             child: Text(
-              session.hasImages ? session.directoryName : 'Choose an image directory',
+              session.hasImages
+                  ? session.directoryName
+                  : 'Choose an image directory',
               overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           ConstrainedBox(
@@ -188,14 +194,14 @@ class _ImagesViewState extends State<ImagesView> {
                   child: Text(
                     'Open a folder to group its images.',
                     style: TextStyle(
-                        fontSize: 12.5, color: WorkspaceColors.textMuted),
+                      fontSize: 12.5,
+                      color: WorkspaceColors.textMuted,
+                    ),
                   ),
                 )
               : ListView(
                   padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-                  children: [
-                    for (final group in groups) _groupButton(group),
-                  ],
+                  children: [for (final group in groups) _groupButton(group)],
                 ),
         ),
       ],
@@ -212,10 +218,12 @@ class _ImagesViewState extends State<ImagesView> {
       style: TextButton.styleFrom(
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        backgroundColor:
-            selected ? WorkspaceColors.surfaceRaised : Colors.transparent,
-        foregroundColor:
-            selected ? WorkspaceColors.accent : WorkspaceColors.text,
+        backgroundColor: selected
+            ? WorkspaceColors.surfaceRaised
+            : Colors.transparent,
+        foregroundColor: selected
+            ? WorkspaceColors.accent
+            : WorkspaceColors.text,
       ),
       child: Row(
         children: [
@@ -277,20 +285,26 @@ class _ImagesViewState extends State<ImagesView> {
                         fit: BoxFit.cover,
                         cacheWidth: 320,
                         errorBuilder: (_, _, _) => const Center(
-                          child: Icon(Icons.broken_image_outlined,
-                              color: WorkspaceColors.textMuted),
+                          child: Icon(
+                            Icons.broken_image_outlined,
+                            color: WorkspaceColors.textMuted,
+                          ),
                         ),
                       ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 6),
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       child: Text(
                         image.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 11.5, color: WorkspaceColors.textMuted),
+                          fontSize: 11.5,
+                          color: WorkspaceColors.textMuted,
+                        ),
                       ),
                     ),
                   ],
@@ -321,15 +335,19 @@ class _ImagesViewState extends State<ImagesView> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: WorkspaceColors.border),
                 ),
-                child: const Text('IMG',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: WorkspaceColors.accent)),
+                child: const Text(
+                  'IMG',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: WorkspaceColors.accent,
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
-              const Text('Open a folder of images',
-                  style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Text(
+                'Open a folder of images',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 6),
               const Text(
                 'Images are grouped by the folders they live in.',
@@ -379,6 +397,18 @@ class _ImagesViewState extends State<ImagesView> {
   }
 }
 
+/// Maps a finished horizontal drag to a lightbox step: +1 for a leftward
+/// fling, -1 for a rightward one, 0 when the drag is too short, used more
+/// than one finger (pinch zoom), or the image is zoomed (then it pans).
+int lightboxSwipeStep({
+  required double dx,
+  required bool zoomed,
+  required bool singlePointer,
+}) {
+  if (zoomed || !singlePointer || dx.abs() < 60) return 0;
+  return dx < 0 ? 1 : -1;
+}
+
 /// The lightbox: wrapping navigation, a caption, and the attach row.
 class _Lightbox extends StatefulWidget {
   const _Lightbox({
@@ -398,6 +428,14 @@ class _Lightbox extends StatefulWidget {
 class _LightboxState extends State<_Lightbox> {
   final FocusNode _focus = FocusNode();
   final ScrollController _targets = ScrollController();
+  final TransformationController _zoom = TransformationController();
+
+  /// Pointers of the ongoing gesture and the horizontal distance covered by
+  /// a single finger. A second finger (pinch) taints the gesture so zooming
+  /// never steps to another image.
+  final Set<int> _pointers = <int>{};
+  double _dragDx = 0;
+  bool _dragTainted = false;
 
   @override
   void initState() {
@@ -409,6 +447,7 @@ class _LightboxState extends State<_Lightbox> {
   void dispose() {
     _focus.dispose();
     _targets.dispose();
+    _zoom.dispose();
     super.dispose();
   }
 
@@ -427,6 +466,37 @@ class _LightboxState extends State<_Lightbox> {
     }
   }
 
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers.add(event.pointer);
+    if (_pointers.length > 1) _dragTainted = true;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (!_dragTainted && _pointers.length == 1) {
+      _dragDx += event.delta.dx;
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent event) => _endPointer(event);
+
+  void _onPointerCancel(PointerCancelEvent event) => _endPointer(event);
+
+  void _endPointer(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.isNotEmpty) return;
+    final step = lightboxSwipeStep(
+      dx: _dragDx,
+      zoomed: _zoom.value.getMaxScaleOnAxis() > 1.01,
+      singlePointer: !_dragTainted,
+    );
+    _dragDx = 0;
+    _dragTainted = false;
+    if (step != 0 && mounted) {
+      widget.images.stepLightbox(step);
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = widget.images;
@@ -436,6 +506,14 @@ class _LightboxState extends State<_Lightbox> {
       return const SizedBox.shrink();
     }
     final image = visible[index];
+
+    // A fixed viewport: InteractiveViewer collapses to zero under the loose
+    // constraints of a min-sized dialog Column, which once left the lightbox
+    // image invisible. Bounding the box explicitly keeps the viewer, the
+    // swipe area, and the chevrons on a known surface.
+    final viewport = MediaQuery.sizeOf(context);
+    final viewerWidth = (viewport.width - 96).clamp(280.0, 1000.0);
+    final viewerHeight = (viewport.height * 0.62).clamp(280.0, 720.0);
 
     return Focus(
       focusNode: _focus,
@@ -449,20 +527,49 @@ class _LightboxState extends State<_Lightbox> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
+            SizedBox(
+              width: viewerWidth,
+              height: viewerHeight,
               child: Stack(
+                // Expanded children take the full viewport: without it the
+                // viewer shrink-wraps its child under these loose
+                // constraints and the image collapses to zero.
+                fit: StackFit.expand,
                 children: [
-                  Center(
+                  // A raw Listener (not a gesture recognizer) tracks the
+                  // swipe so it coexists with the viewer's own pan/zoom:
+                  // one finger past the threshold steps, anything else
+                  // pans or zooms. Opaque so a swipe counts anywhere over
+                  // the viewer — even while the image is still decoding
+                  // and only the placeholder is showing. It observes raw
+                  // events without claiming gestures, so the viewer's own
+                  // pan/zoom and the chevron buttons keep working.
+                  Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: _onPointerDown,
+                    onPointerMove: _onPointerMove,
+                    onPointerUp: _onPointerUp,
+                    onPointerCancel: _onPointerCancel,
                     child: InteractiveViewer(
+                      transformationController: _zoom,
                       maxScale: 6,
-                      child: Image.file(
-                        File(image.path),
-                        errorBuilder: (_, _, _) => const SizedBox(
-                          width: 320,
-                          height: 240,
-                          child: Center(
-                            child: Text('This image could not be opened.',
-                                style: TextStyle(color: Colors.white70)),
+                      // Fill the viewport so the image opens fitted
+                      // (contain letterboxes it) instead of 1:1 cropped.
+                      child: SizedBox(
+                        width: viewerWidth,
+                        height: viewerHeight,
+                        child: Image.file(
+                          File(image.path),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox(
+                            width: 320,
+                            height: 240,
+                            child: Center(
+                              child: Text(
+                                'This image could not be opened.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -492,8 +599,11 @@ class _LightboxState extends State<_Lightbox> {
                             session.stepLightbox(-1);
                             setState(() {});
                           },
-                          icon: const Icon(Icons.chevron_left,
-                              color: Colors.white, size: 36),
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Colors.white,
+                            size: 36,
+                          ),
                         ),
                       ),
                     ),
@@ -508,8 +618,11 @@ class _LightboxState extends State<_Lightbox> {
                             session.stepLightbox(1);
                             setState(() {});
                           },
-                          icon: const Icon(Icons.chevron_right,
-                              color: Colors.white, size: 36),
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white,
+                            size: 36,
+                          ),
                         ),
                       ),
                     ),
@@ -540,20 +653,25 @@ class _LightboxState extends State<_Lightbox> {
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
                           initialValue: widget.controller.linkTargetId,
-                          hint: const Text('Select outline item',
-                              style: TextStyle(fontSize: 12.5)),
+                          hint: const Text(
+                            'Select outline item',
+                            style: TextStyle(fontSize: 12.5),
+                          ),
                           items: [
                             const DropdownMenuItem<String?>(
                               value: null,
-                              child: Text('Select outline item',
-                                  style: TextStyle(fontSize: 12.5)),
+                              child: Text(
+                                'Select outline item',
+                                style: TextStyle(fontSize: 12.5),
+                              ),
                             ),
                             for (final item in widget.controller.tocItems)
                               DropdownMenuItem<String?>(
                                 value: item.id,
                                 child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 220),
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 220,
+                                  ),
                                   child: Text(
                                     item.title,
                                     style: const TextStyle(fontSize: 12.5),

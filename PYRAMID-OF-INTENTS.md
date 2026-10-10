@@ -193,7 +193,7 @@ changeable independently behind small contracts.
 ## Current state snapshot
 
 Verified against the tree and a full run on 2026-10-08 — `flutter analyze`
-(no issues), `flutter test` (133/133: 125 functional + 8 docs guard),
+(no issues), `flutter test` (164/164: 156 functional + 8 docs guard),
 `flutter build linux --debug`, `flutter build linux --release`,
 `flutter build web --release`, `tool/smoke.sh --build --timeout=10`
 (Smoke OK, exit 124 = stayed up) — rather than against these entries. Every
@@ -225,16 +225,17 @@ Already present and working:
   remembered PDF at its recorded page/zoom and the image folder at its
   recorded group; gone paths are forgotten with a sentence — **I2.1**.
   Locked by `test/boot_reopen_test.dart` (TODO-016 closed).
-- 116 tests: metrics (12), bridge (11), store (13), normalizer (14),
-  persistence merge + modes (17), boot composition (3), tile gate + eviction
-  (9), tool interactions (23), third-party seams (15), shell smoke (3), docs
-  guard (8) — **I4.1**.
-- Third-party seams with fakes: `FakeFileService` picker flows, `LocationQuery`
-  over `geolocator` (denied/disabled/fix tested), `PdfOpener` over `pdfx` /
-  `pdfrx` (unsupported-platform refusal and a real Linux open-and-render
-  tested without touching a mobile renderer), `pdf`-package rendering and
-  outline parsing headlessly — **I3.4**, **I4.1**. Audit finding: the unused
-  `image` dependency was removed from `pubspec.yaml`.
+- 164 tests: metrics (12), bridge (11), store (14), normalizer (14),
+  persistence merge + modes (17), boot composition (4), tile gate + eviction
+  (9), tile cache (5), tool interactions (36), third-party seams (25),
+  shell smoke (5), boot reopen (5), theme (1), docs guard (8) — **I4.1**.
+- Third-party seams with fakes: `FakeFileService` picker flows (including
+  cancellations), `LocationQuery` over `geolocator` (denied/disabled/forever/
+  failing tested), `PdfOpener` over `pdfx` / `pdfrx` (per-platform gates,
+  unsupported-platform refusal, and a real Linux open-and-render tested),
+  `pdf`-package rendering and outline parsing headlessly — **I3.4**,
+  **I4.1**. Audit finding: the unused `image` dependency was removed from
+  `pubspec.yaml`.
 - Map Explorer with pan/zoom, colour filters, grid, cursor readout, scale bar,
   saved places, GeoJSON layers, distance/bearing, locate, and a bounded tile
   cache (4 concurrent, 100 ms spacing, 429/5xx backoff, 2000 files / 64 MiB
@@ -286,17 +287,18 @@ nothing reaches the network or filesystem except through the four seams
 | --- | --- | --- | --- |
 | TOC Manager | Title + level → Add; move up/down; remove; filter text; JSON/heading imports | `WorkspaceController.addTocItem/moveTocItem/removeTocItem/undoTocRemoval` validate + clamp; `importTocJson/importPdfHeadings` accept or set the `That file is not an outline export.` sentence | `outline` items + `lastRemoved` persisted; status sentence + row order on screen |
 | Text Editor | Keystroke in the bound buffer; Prev/Next; import/export draft | `setEditorContent` stores text, recomputes word count, `syncTocDraft` so outline and editor never disagree; `touch()` → 250 ms debounce → store | `editor` buffer + item draft persisted; `N words · <save mode>` + cursor position |
-| PDF Reader | Choose file; page/zoom controls; Attach page | `PdfSession.openAt` decodes via `pdfx`, caches pages; `parsePdfOutline` extracts headings; `attachPdfPage` binds page to the linked outline item | `pdf` path/name/page/zoom/recents persisted (file itself is NOT reopened); page readout + sidebar + remembered list |
-| Image Viewer | Choose directory; pick group; lightbox step; attach to section | `ImageSession.openAt` scans (500-file, depth, size caps) and groups; `stepLightbox` wraps; `attachImages` binds paths to the linked item | `images` path/groups/lightbox/recents persisted (folder itself is NOT reopened); grid + lightbox + `N images` badge |
-| Map Explorer | Drag/zoom; drop pin; Save/Clear pin; rename; GeoJSON load; Locate; Attach location | `MapSession` viewport math via `projection.dart`; `parsePlacesFile` validates CSV/GeoJSON (200-place cap); `TileRequestGate` admits or sheds load; `attachLocation` binds pin to the linked item | `map` viewport/places/filter/layers persisted; pin, readout (`045° NE · 1.2 km`), attribution on screen |
-| Menu | Tap a card | Reads badges from the controller + sessions; `selectView` switches the `IndexedStack` | `view` persisted so restart reopens the same tool; live badges |
+| PDF Reader | Choose file; page/zoom controls; Attach page | `PdfSession.openAt` decodes via the platform renderer (`pdfrx` on Linux, `pdfx` elsewhere), caches pages; `parsePdfOutline` extracts headings; `attachPdfPage` binds page to the linked outline item | `pdf` path/name/page/zoom/recents persisted and reopened on restart; page readout + sidebar + remembered list |
+| Image Viewer | Choose directory; pick group; lightbox step (chevrons, keys, swipe); attach to section | `ImageSession.openAt` scans (500-file, depth, size caps) and groups; `stepLightbox` wraps; `attachImages` binds paths to the linked item | `images` path/groups/recents persisted and reopened on restart; grid + lightbox + `N images` badge |
+| Map Explorer | Drag/zoom; long-press pin; Save pin/centre; Prev/Next stepping; go-to-coordinates; rename; GeoJSON load; Locate; Attach location | `MapSession` viewport math via `projection.dart`; `parsePlacesFile` validates CSV/GeoJSON (200-place cap); `TileRequestGate` admits or sheds load; `attachLocation` binds pin to the linked item; Clear-alls ask first | `map` places/filter/layers persisted; pin, readout (`045° NE · 1.2 km`), attribution on screen |
+| Menu | Tap a card (ripple on touch) | Reads badges from the controller + sessions; `selectView` crossfades the animated stack | `view` persisted so restart reopens the same tool; live badges |
 
 Global flows:
 
 ```text
 boot:    main() → directories → readBootCache → WorkspaceController(boot)
          → startPersistence → hydrate (durable wins unless strictly older)
-         → sessions → runApp → shell shows recorded view
+         → sessions → reopenRemembered (PDF at page/zoom, folder at group)
+         → runApp → shell shows recorded view
          output: mode=native + `saved to disk` when restored, else none
 
 keystroke: view → controller.setX → touch() → schedule()

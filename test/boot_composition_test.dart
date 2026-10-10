@@ -96,4 +96,27 @@ void main() {
     persistence.dispose();
     controller.dispose();
   });
+
+  test('hydration is a no-op without a native store', () {
+    expect(bridge.saveCache(serializeWorkspace(record(1000, 'menu'))), isTrue);
+
+    final boot = readBootCache(bridge);
+    final controller = WorkspaceController(boot: boot);
+    final memoryless = WorkspaceStoreBridge(
+      cachePath: '${root.path}/cache/workspace.json',
+      durablePath: '${root.path}/support/native-workspace/workspace.json',
+      hasNativeStore: false,
+    );
+    final persistence = startPersistence(
+      boot: boot,
+      controller: controller,
+      bridge: memoryless,
+    );
+
+    expect(controller.view, 'menu');
+    expect(persistence.report, isNull);
+
+    persistence.dispose();
+    controller.dispose();
+  });
 }

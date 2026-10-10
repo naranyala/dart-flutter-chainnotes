@@ -37,8 +37,9 @@ void main() {
     // The real footer, not a stub: the status bar Row carries flex children
     // (Spacer/Expanded) and once shipped wrapped in another Row, which threw
     // an unbounded-width exception on the very first frame. This guards it.
-    final scratch =
-        Directory.systemTemp.createTempSync('chainnotes-shell persist');
+    final scratch = Directory.systemTemp.createTempSync(
+      'chainnotes-shell persist',
+    );
     final persistence = WorkspacePersistence(
       bridge: WorkspaceStoreBridge(
         cachePath: '${scratch.path}/workspace.json',
@@ -74,12 +75,7 @@ void main() {
               images: images,
               map: map,
             ),
-            TocView(
-              controller: controller,
-              pdf: pdf,
-              images: images,
-              map: map,
-            ),
+            TocView(controller: controller, pdf: pdf, images: images, map: map),
             EditorView(controller: controller),
             PdfView(controller: controller, pdf: pdf),
             ImagesView(controller: controller, images: images),
@@ -109,6 +105,106 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     tiles.dispose();
     controller.dispose();
+  });
+
+  testWidgets('a switch settles on the target view without errors', (
+    tester,
+  ) async {
+    final controller = WorkspaceController(boot: normalizeWorkspace(null));
+    addTearDown(controller.dispose);
+    final pdf = PdfSession(controller);
+    addTearDown(pdf.dispose);
+    final images = ImageSession(controller);
+    addTearDown(images.dispose);
+    final map = MapSession(controller);
+    addTearDown(map.dispose);
+    final tiles = TileCache(
+      cacheDirectory: Directory.systemTemp.createTempSync('chainnotes-settle'),
+      client: MockClient((_) async => http.Response('gone', 404)),
+    );
+    addTearDown(tiles.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildWorkspaceTheme(),
+        home: WorkspaceShell(
+          controller: controller,
+          footer: const SizedBox(height: 10),
+          views: [
+            MenuView(
+              controller: controller,
+              pdf: pdf,
+              images: images,
+              map: map,
+            ),
+            TocView(controller: controller, pdf: pdf, images: images, map: map),
+            EditorView(controller: controller),
+            PdfView(controller: controller, pdf: pdf),
+            ImagesView(controller: controller, images: images),
+            MapView(controller: controller, map: map, tiles: tiles),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    // Step through the 200 ms crossfade (mid-flight, then past it) for
+    // several switches: no frame may throw, and the target must be showing.
+    for (final view in ['map', 'pdf', 'menu']) {
+      controller.selectView(view);
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(tester.takeException(), isNull, reason: 'mid-flight $view');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull, reason: 'settled $view');
+      expect(controller.view, view);
+    }
+    // No persistence is attached in this harness, so selectView schedules
+    // nothing and there is no debounce timer to flush at teardown.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the system back button returns to the menu', (tester) async {
+    final controller = WorkspaceController(boot: normalizeWorkspace(null));
+    addTearDown(controller.dispose);
+    final pdf = PdfSession(controller);
+    addTearDown(pdf.dispose);
+    final images = ImageSession(controller);
+    addTearDown(images.dispose);
+    final map = MapSession(controller);
+    addTearDown(map.dispose);
+    final tiles = TileCache(
+      cacheDirectory: Directory.systemTemp.createTempSync('chainnotes-back'),
+      client: MockClient((_) async => http.Response('gone', 404)),
+    );
+    addTearDown(tiles.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildWorkspaceTheme(),
+        home: WorkspaceShell(
+          controller: controller,
+          footer: const SizedBox(height: 10),
+          views: [
+            MenuView(
+              controller: controller,
+              pdf: pdf,
+              images: images,
+              map: map,
+            ),
+            TocView(controller: controller, pdf: pdf, images: images, map: map),
+            EditorView(controller: controller),
+            PdfView(controller: controller, pdf: pdf),
+            ImagesView(controller: controller, images: images),
+            MapView(controller: controller, map: map, tiles: tiles),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    controller.selectView('toc');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(controller.view, 'toc');
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(controller.view, 'menu');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the menu navbar spans the full window width', (tester) async {
@@ -145,16 +241,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the status bar menu button shows the menu grid again',
-      (tester) async {
+  testWidgets('the status bar menu button shows the menu grid again', (
+    tester,
+  ) async {
     final controller = WorkspaceController(boot: normalizeWorkspace(null));
     addTearDown(controller.dispose);
     controller.selectView('toc');
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: MenuGridButton(controller: controller),
-        ),
+        home: Scaffold(body: MenuGridButton(controller: controller)),
       ),
     );
     await tester.tap(find.byKey(const Key('show-menu-grid')));

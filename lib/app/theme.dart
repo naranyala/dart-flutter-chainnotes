@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Design tokens ported from `frontend-vue/src/styles/tokens.css`.
@@ -32,7 +33,16 @@ ThemeData buildWorkspaceTheme() {
       outline: WorkspaceColors.border,
     ),
     scaffoldBackgroundColor: WorkspaceColors.background,
-    splashFactory: NoSplash.splashFactory,
+    // Taps must answer on touch screens (a ripple); desktop keeps the flat
+    // ported look where hover already responds (TODO-018).
+    splashFactory: switch (defaultTargetPlatform) {
+      TargetPlatform.android ||
+      TargetPlatform.iOS ||
+      TargetPlatform.fuchsia => InkSparkle.splashFactory,
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => NoSplash.splashFactory,
+    },
     highlightColor: Colors.transparent,
     hoverColor: Colors.white10,
     fontFamily: 'Roboto',
@@ -95,8 +105,7 @@ ThemeData buildWorkspaceTheme() {
         isDense: true,
         filled: true,
         fillColor: WorkspaceColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: WorkspaceColors.borderSubtle),

@@ -42,11 +42,107 @@ below.
 - **Done when:** Every platform listed as supported builds from a clean
   checkout, and the README names exactly those.
 
+TODO-018–TODO-022 (frontend interaction polish) closed with evidence below.
+
 ## P3 — Optional polish and open decisions
 
-No open P3 items. TODO-015 closed with evidence below.
+TODO-015 closed with evidence below; TODO-023–TODO-027 are open polish from
+the frontend audit.
+
+### TODO-023 — Use one feedback channel for input errors
+
+- **Intent:** I2.2
+- **Priority:** P3
+- **Work:** An empty TOC title fires both a `SnackBar` and the status
+  sentence; every other tool uses the status line only. Drop the snackbar so
+  errors surface in exactly one place.
+- **Done when:** Declaring an empty section shows the status sentence and no
+  snackbar appears.
+
+### TODO-024 — Label the interface for screen readers
+
+- **Intent:** I2.2
+- **Priority:** P3
+- **Work:** The only `Semantics` in the app is `StatusLine`. Images have no
+  `semanticLabel`, icon-only buttons lean on tooltips mobile readers often
+  skip, and canvas markers expose nothing. Add image labels,
+  `Semantics(button:)` on markers, and header semantics — incrementally,
+  tool by tool.
+- **Done when:** Each tool's main regions and actions announce a name; no
+  behavior changes.
+
+### TODO-025 — Unify icon glyph sizes
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Work:** Glyphs drift between 13, 15, and 16 px across views (36 px
+  lightbox chevrons excepted). Standardize on 16 px.
+- **Done when:** No icon glyph outside the chevrons differs from 16 px.
+
+### TODO-026 — Floor small type at 12 px on narrow windows
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Work:** Leg distances, pills, and the save readout run at 10.5–11 px —
+  fine dense-desktop type, small on phones. Floor those styles at 12 px when
+  the window is narrow.
+- **Done when:** No text below 12 px renders under a 560 px window.
+
+### TODO-027 — Lift muted-text contrast
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Work:** `textMuted` (`#8B919C` on `#1D2026`) is borderline for small text.
+  Nudge it toward `#9AA0AB` and re-check the muted styles still read as
+  secondary.
+- **Done when:** Muted text meets 4.5:1 against surfaces and still looks
+  secondary on a screenshot.
 
 ## Closed (with evidence)
+
+### TODO-018 — Restore press feedback on touch screens — DONE
+
+- **Intent:** I2.2
+- **Priority:** P2
+- **Evidence:** `lib/app/theme.dart` gates `splashFactory` on the platform
+  (`InkSparkle` on Android/iOS/Fuchsia, `NoSplash` on desktop); new
+  `test/theme_test.dart` pins ripple on touch and flat on Linux/macOS/
+  Windows.
+
+### TODO-019 — Bring small touch targets up to 44 px — DONE
+
+- **Intent:** I2.2
+- **Priority:** P2
+- **Evidence:** map markers gained a 44 px minimum height (anchor recentered
+  on the point) and place-row title buttons a `Size(48, 44)` minimum; a
+  widget test measures both at ≥44 px tall. Full suite green.
+
+### TODO-020 — Set mobile keyboard actions on every field — DONE
+
+- **Intent:** I2.2
+- **Priority:** P2
+- **Evidence:** Done on the TOC title/rename fields, Search on the TOC
+  filter, Next/Done on the latitude/longitude pair (keys added where
+  missing); widget tests read each action off the keyed fields.
+
+### TODO-021 — Swipe between lightbox images — DONE
+
+- **Intent:** I2.2
+- **Priority:** P2
+- **Evidence:** a raw-pointer `Listener` (opaque, non-competing) steps past
+  a 60 px single-finger drag unless zoomed or pinching, via the unit-tested
+  `lightboxSwipeStep`; a fling widget test steps 0→1. The work also fixed a
+  real layout bug the test caught: `InteractiveViewer` collapsed to 0×0
+  under the dialog's loose constraints, so the viewer now owns a fixed
+  viewport-relative box with the image fitted (`contain`).
+
+### TODO-022 — Guard bulk destructive actions — DONE
+
+- **Intent:** I2.2, I3.2
+- **Priority:** P2
+- **Evidence:** `Clear` places and `Clear` layers ask first (`Cancel` keeps
+  everything, `Clear` empties); widget tests drive both paths. Single-item
+  removes stay one tap.
 
 ### TODO-015 — Measure release first-run latency — DONE
 

@@ -75,8 +75,7 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView>
-    with SingleTickerProviderStateMixin {
+class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final Stopwatch _clock = Stopwatch();
   final TextEditingController _renameController = TextEditingController();
@@ -165,8 +164,11 @@ class _MapViewState extends State<MapView>
 
   Offset _project(double lat, double lon) {
     final world = projectToPixel(lon, lat, _safeZoom);
-    final center =
-        projectToPixel(session.centerLon, session.centerLat, _safeZoom);
+    final center = projectToPixel(
+      session.centerLon,
+      session.centerLat,
+      _safeZoom,
+    );
     return Offset(
       (world.x - center.x) * _scale + _size.width / 2,
       (world.y - center.y) * _scale + _size.height / 2,
@@ -174,8 +176,11 @@ class _MapViewState extends State<MapView>
   }
 
   LatLon _unproject(Offset screen) {
-    final center =
-        projectToPixel(session.centerLon, session.centerLat, _safeZoom);
+    final center = projectToPixel(
+      session.centerLon,
+      session.centerLat,
+      _safeZoom,
+    );
     final world = Offset(
       (screen.dx - _size.width / 2) / _scale + center.x,
       (screen.dy - _size.height / 2) / _scale + center.y,
@@ -184,10 +189,12 @@ class _MapViewState extends State<MapView>
   }
 
   Rect _tileScreenRect(VisibleTile tile) {
-    final center =
-        projectToPixel(session.centerLon, session.centerLat, _safeZoom);
-    final left =
-        (tile.left - center.x) * _scale + _size.width / 2;
+    final center = projectToPixel(
+      session.centerLon,
+      session.centerLat,
+      _safeZoom,
+    );
+    final left = (tile.left - center.x) * _scale + _size.width / 2;
     final top = (tile.top - center.y) * _scale + _size.height / 2;
     final size = tileSize * _scale;
     return Rect.fromLTWH(left, top, size, size);
@@ -235,7 +242,8 @@ class _MapViewState extends State<MapView>
       return;
     }
     if (_startZoom > 0) {
-      final zoom = _startZoom + math.log(details.scale.clamp(0.05, 20.0)) / math.ln2;
+      final zoom =
+          _startZoom + math.log(details.scale.clamp(0.05, 20.0)) / math.ln2;
       session.setZoom(zoom);
     }
   }
@@ -253,6 +261,55 @@ class _MapViewState extends State<MapView>
   }
 
   /* --- sidebar actions ----------------------------------------------------- */
+
+  /// Clearing wipes the whole list with no undo, so both Clear-alls ask
+  /// first. Single-item removes stay one tap.
+  Future<bool> _confirmClear(String title, String message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _clearPlaces() async {
+    if (controller.map.places.isEmpty || !mounted) return;
+    final confirmed = await _confirmClear(
+      'Clear all places?',
+      '${controller.map.places.length} saved places will be removed. '
+          'This cannot be undone.',
+    );
+    if (confirmed && mounted) {
+      controller.clearPlaces();
+      setState(() {});
+    }
+  }
+
+  Future<void> _clearLayers() async {
+    if (session.layers.isEmpty || !mounted) return;
+    final confirmed = await _confirmClear(
+      'Clear all layers?',
+      '${session.layers.length} GeoJSON layers will be removed. '
+          'This cannot be undone.',
+    );
+    if (confirmed && mounted) {
+      session.clearLayers();
+      setState(() {});
+    }
+  }
 
   Future<void> _importPlaces() async {
     final path = await widget.files.chooseFile(
@@ -313,8 +370,10 @@ class _MapViewState extends State<MapView>
                         decoration: const BoxDecoration(
                           color: WorkspaceColors.surface,
                           border: Border(
-                              bottom: BorderSide(
-                                  color: WorkspaceColors.borderSubtle)),
+                            bottom: BorderSide(
+                              color: WorkspaceColors.borderSubtle,
+                            ),
+                          ),
                         ),
                         child: _sidebar(width: double.infinity),
                       ),
@@ -369,7 +428,9 @@ class _MapViewState extends State<MapView>
               key: const Key('map-center-label'),
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 12.5, color: WorkspaceColors.textMuted),
+                fontSize: 12.5,
+                color: WorkspaceColors.textMuted,
+              ),
             ),
           ),
           ConstrainedBox(
@@ -411,14 +472,15 @@ class _MapViewState extends State<MapView>
             width: 200,
             child: DropdownButtonFormField<String?>(
               initialValue: controller.linkTargetId,
-              hint: const Text('Attach to…',
-                  style: TextStyle(fontSize: 12.5)),
+              hint: const Text('Attach to…', style: TextStyle(fontSize: 12.5)),
               isExpanded: true,
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Select outline item',
-                      style: TextStyle(fontSize: 12.5)),
+                  child: Text(
+                    'Select outline item',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
                 ),
                 for (final item in controller.tocItems)
                   DropdownMenuItem<String?>(
@@ -438,7 +500,7 @@ class _MapViewState extends State<MapView>
           ),
           w.ToolbarButton(
             label: 'Attach location',
-                  variant: w.ToolbarVariant.primary,
+            variant: w.ToolbarVariant.primary,
             onPressed: controller.linkTarget == null || session.pin == null
                 ? null
                 : () {
@@ -476,17 +538,14 @@ class _MapViewState extends State<MapView>
                 for (final filter in mapFilters)
                   DropdownMenuItem(
                     value: filter,
-                    child: Text(
-                      switch (filter) {
-                        'none' => 'Original colours',
-                        'grayscale' => 'Grayscale',
-                        'dark' => 'Dark',
-                        'sepia' => 'Sepia',
-                        'vivid' => 'Vivid',
-                        _ => 'Faded',
-                      },
-                      style: const TextStyle(fontSize: 12.5),
-                    ),
+                    child: Text(switch (filter) {
+                      'none' => 'Original colours',
+                      'grayscale' => 'Grayscale',
+                      'dark' => 'Dark',
+                      'sepia' => 'Sepia',
+                      'vivid' => 'Vivid',
+                      _ => 'Faded',
+                    }, style: const TextStyle(fontSize: 12.5)),
                   ),
               ],
               onChanged: (value) {
@@ -496,9 +555,13 @@ class _MapViewState extends State<MapView>
             ),
           ),
           Text(
-            controller.map.renderer == 'canvas' ? 'Canvas renderer' : 'DOM renderer',
-            style:
-                const TextStyle(fontSize: 12, color: WorkspaceColors.textMuted),
+            controller.map.renderer == 'canvas'
+                ? 'Canvas renderer'
+                : 'DOM renderer',
+            style: const TextStyle(
+              fontSize: 12,
+              color: WorkspaceColors.textMuted,
+            ),
           ),
           TextButton(
             onPressed: () => session.toggleGrid(),
@@ -543,8 +606,7 @@ class _MapViewState extends State<MapView>
             // Long-press drops the pin: a plain tap is for panning on touch
             // screens, and dropping a pin on every tap made the map unusable
             // on phones.
-            onLongPressStart: (details) =>
-                _dropPinAt(details.localPosition),
+            onLongPressStart: (details) => _dropPinAt(details.localPosition),
             child: MouseRegion(
               onHover: (event) {
                 if (!controller.map.showCursor) return;
@@ -577,7 +639,8 @@ class _MapViewState extends State<MapView>
                         centerLat: session.centerLat,
                         centerLon: session.centerLon,
                         size: _size,
-                        filter: _filters[controller.map.filter] ??
+                        filter:
+                            _filters[controller.map.filter] ??
                             _filters['none']!,
                         showGrid: controller.map.showGrid,
                         project: _project,
@@ -589,15 +652,20 @@ class _MapViewState extends State<MapView>
                     if (_isOnScreen(place))
                       Positioned(
                         left: _project(place.lat, place.lon).dx - 8,
-                        top: _project(place.lat, place.lon).dy - 8,
+                        // The pill is at least 44 px tall: anchor its middle
+                        // on the point instead of its top edge.
+                        top: _project(place.lat, place.lon).dy - 22,
                         child: _placeMarker(place),
                       ),
                   if (pin != null && _isOnScreenLocation(pin))
                     Positioned(
                       left: _project(pin.lat, pin.lon).dx - 10,
                       top: _project(pin.lat, pin.lon).dy - 28,
-                      child: const Icon(Icons.location_on,
-                          color: Color(0xFFF06A5A), size: 26),
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Color(0xFFF06A5A),
+                        size: 26,
+                      ),
                     ),
                   if (controller.map.showCursor && _cursorLabel != null)
                     Positioned(
@@ -606,16 +674,8 @@ class _MapViewState extends State<MapView>
                       child: _readout(_cursorLabel!),
                     ),
                   if (session.pin != null && _selectedPlace != null)
-                    Positioned(
-                      left: 10,
-                      bottom: 8,
-                      child: _bearingReadout(),
-                    ),
-                  Positioned(
-                    right: 10,
-                    bottom: 8,
-                    child: _scaleBar(),
-                  ),
+                    Positioned(left: 10, bottom: 8, child: _bearingReadout()),
+                  Positioned(right: 10, bottom: 8, child: _scaleBar()),
                   Positioned(
                     right: 10,
                     bottom: 34,
@@ -665,13 +725,16 @@ class _MapViewState extends State<MapView>
     return Tooltip(
       message: place.label,
       child: InkWell(
+        key: Key('place-marker-${place.id}'),
         onTap: () {
           session.selectPlace(place);
           setState(() {});
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected
                 ? WorkspaceColors.accent
@@ -684,11 +747,13 @@ class _MapViewState extends State<MapView>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.flag,
-                  size: 13,
-                  color: selected
-                      ? WorkspaceColors.accentInk
-                      : WorkspaceColors.accent),
+              Icon(
+                Icons.flag,
+                size: 13,
+                color: selected
+                    ? WorkspaceColors.accentInk
+                    : WorkspaceColors.accent,
+              ),
               const SizedBox(width: 4),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 140),
@@ -711,17 +776,20 @@ class _MapViewState extends State<MapView>
   }
 
   Widget _readout(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-              fontSize: 11.5, color: Colors.white, fontFeatures: []),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11.5,
+        color: Colors.white,
+        fontFeatures: [],
+      ),
+    ),
+  );
 
   Widget _bearingReadout() {
     final place = _selectedPlace!;
@@ -758,8 +826,22 @@ class _MapViewState extends State<MapView>
       return const SizedBox.shrink();
     }
     final targets = <double>[
-      10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000,
-      100000, 250000, 500000, 1000000
+      10,
+      25,
+      50,
+      100,
+      250,
+      500,
+      1000,
+      2500,
+      5000,
+      10000,
+      25000,
+      50000,
+      100000,
+      250000,
+      500000,
+      1000000,
     ];
     double chosen = targets.first;
     for (final target in targets) {
@@ -812,7 +894,9 @@ class _MapViewState extends State<MapView>
                 key: const Key('map-place-count'),
                 '${controller.map.places.length}',
                 style: const TextStyle(
-                    fontSize: 12, color: WorkspaceColors.textMuted),
+                  fontSize: 12,
+                  color: WorkspaceColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -822,7 +906,7 @@ class _MapViewState extends State<MapView>
               Expanded(
                 child: w.ToolbarButton(
                   label: 'Save pin',
-            variant: w.ToolbarVariant.primary,
+                  variant: w.ToolbarVariant.primary,
                   onPressed: session.pin == null
                       ? null
                       : () {
@@ -833,13 +917,9 @@ class _MapViewState extends State<MapView>
               ),
               const SizedBox(width: 6),
               w.ToolbarButton(
+                key: const Key('clear-places'),
                 label: 'Clear',
-                onPressed: controller.map.places.isEmpty
-                    ? null
-                    : () {
-                        controller.clearPlaces();
-                        setState(() {});
-                      },
+                onPressed: controller.map.places.isEmpty ? null : _clearPlaces,
               ),
               const SizedBox(width: 6),
               w.ToolbarButton(label: 'Import', onPressed: _importPlaces),
@@ -857,12 +937,12 @@ class _MapViewState extends State<MapView>
             const Text(
               'No places yet. Long-press the map to drop a pin, then save it with a name.',
               style: TextStyle(
-                  fontSize: 12.5, color: WorkspaceColors.textMuted),
+                fontSize: 12.5,
+                color: WorkspaceColors.textMuted,
+              ),
             )
           else
-            for (var index = 0;
-                index < controller.map.places.length;
-                index++)
+            for (var index = 0; index < controller.map.places.length; index++)
               _placeRow(controller.map.places[index], index),
           const SizedBox(height: 18),
           _positionPanel(),
@@ -875,7 +955,9 @@ class _MapViewState extends State<MapView>
               Text(
                 '${session.layers.fold<int>(0, (sum, layer) => sum + layer.featureCount)} features',
                 style: const TextStyle(
-                    fontSize: 12, color: WorkspaceColors.textMuted),
+                  fontSize: 12,
+                  color: WorkspaceColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -890,13 +972,9 @@ class _MapViewState extends State<MapView>
               ),
               const SizedBox(width: 6),
               w.ToolbarButton(
+                key: const Key('clear-layers'),
                 label: 'Clear',
-                onPressed: session.layers.isEmpty
-                    ? null
-                    : () {
-                        session.clearLayers();
-                        setState(() {});
-                      },
+                onPressed: session.layers.isEmpty ? null : _clearLayers,
               ),
             ],
           ),
@@ -905,7 +983,9 @@ class _MapViewState extends State<MapView>
             const Text(
               'No layers loaded.',
               style: TextStyle(
-                  fontSize: 12.5, color: WorkspaceColors.textMuted),
+                fontSize: 12.5,
+                color: WorkspaceColors.textMuted,
+              ),
             )
           else
             for (final layer in session.layers.toList())
@@ -941,8 +1021,9 @@ class _MapViewState extends State<MapView>
 
   int get _selectedPlaceIndex {
     final places = controller.map.places;
-    final index =
-        places.indexWhere((place) => place.id == session.selectedPlaceId);
+    final index = places.indexWhere(
+      (place) => place.id == session.selectedPlaceId,
+    );
     return index < 0 ? 0 : index;
   }
 
@@ -950,7 +1031,8 @@ class _MapViewState extends State<MapView>
   /// `‹ Prev` / `Next ›` wrap around both ends and fly to each place.
   Widget _placeStepper() {
     final places = controller.map.places;
-    final selected = session.selectedPlaceId != null &&
+    final selected =
+        session.selectedPlaceId != null &&
         places.any((place) => place.id == session.selectedPlaceId);
     final label = selected
         ? '${_selectedPlaceIndex + 1} of ${places.length}'
@@ -977,7 +1059,9 @@ class _MapViewState extends State<MapView>
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 12, color: WorkspaceColors.textMuted),
+                fontSize: 12,
+                color: WorkspaceColors.textMuted,
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -1003,15 +1087,14 @@ class _MapViewState extends State<MapView>
     final text = pin != null
         ? formatCoordinates(pin)
         : formatCoordinates(
-            Location(lat: session.centerLat, lon: session.centerLon));
+            Location(lat: session.centerLat, lon: session.centerLon),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Expanded(
-              child: w.Eyebrow(pin != null ? 'PIN' : 'MAP CENTRE'),
-            ),
+            Expanded(child: w.Eyebrow(pin != null ? 'PIN' : 'MAP CENTRE')),
           ],
         ),
         const SizedBox(height: 8),
@@ -1030,8 +1113,7 @@ class _MapViewState extends State<MapView>
               tooltip: 'Copy coordinates',
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints:
-                  const BoxConstraints(minWidth: 40, minHeight: 40),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               icon: const Icon(Icons.copy_outlined, size: 16),
               onPressed: () => _copyCoords(text),
             ),
@@ -1041,8 +1123,7 @@ class _MapViewState extends State<MapView>
                 tooltip: 'Clear pin',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 40, minHeight: 40),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 icon: const Icon(Icons.close, size: 16),
                 onPressed: () {
                   session.clearPin();
@@ -1088,7 +1169,10 @@ class _MapViewState extends State<MapView>
                 key: const Key('lat-input'),
                 controller: _latController,
                 keyboardType: const TextInputType.numberWithOptions(
-                    signed: true, decimal: true),
+                  signed: true,
+                  decimal: true,
+                ),
+                textInputAction: TextInputAction.next,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
                   hintText: 'Latitude',
@@ -1103,7 +1187,10 @@ class _MapViewState extends State<MapView>
                 key: const Key('lon-input'),
                 controller: _lonController,
                 keyboardType: const TextInputType.numberWithOptions(
-                    signed: true, decimal: true),
+                  signed: true,
+                  decimal: true,
+                ),
+                textInputAction: TextInputAction.done,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
                   hintText: 'Longitude',
@@ -1131,7 +1218,8 @@ class _MapViewState extends State<MapView>
   }
 
   Widget _placeRow(Place place, int index) {
-    final active = session.pin != null &&
+    final active =
+        session.pin != null &&
         session.pin!.lat == place.lat &&
         session.pin!.lon == place.lon;
     final selected = place.id == session.selectedPlaceId;
@@ -1165,7 +1253,9 @@ class _MapViewState extends State<MapView>
               child: Text(
                 '↳ ${formatDistance(leg)}',
                 style: const TextStyle(
-                    fontSize: 10.5, color: WorkspaceColors.textMuted),
+                  fontSize: 10.5,
+                  color: WorkspaceColors.textMuted,
+                ),
               ),
             ),
           if (renaming)
@@ -1173,9 +1263,11 @@ class _MapViewState extends State<MapView>
               children: [
                 Expanded(
                   child: TextFormField(
+                    key: const Key('place-rename-input'),
                     controller: _renameController,
                     maxLength: 80,
                     style: const TextStyle(fontSize: 12.5),
+                    textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(counterText: ''),
                     onFieldSubmitted: (_) => _commitRename(place),
                   ),
@@ -1203,6 +1295,8 @@ class _MapViewState extends State<MapView>
                     style: TextButton.styleFrom(
                       alignment: Alignment.centerLeft,
                       padding: const EdgeInsets.symmetric(vertical: 6),
+                      minimumSize: const Size(48, 44),
+                      tapTargetSize: MaterialTapTargetSize.padded,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1216,8 +1310,9 @@ class _MapViewState extends State<MapView>
                           '${place.lat.toStringAsFixed(5)}, '
                           '${place.lon.toStringAsFixed(5)}',
                           style: const TextStyle(
-                              fontSize: 10.5,
-                              color: WorkspaceColors.textMuted),
+                            fontSize: 10.5,
+                            color: WorkspaceColors.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -1340,9 +1435,11 @@ class _MapPainter extends CustomPainter {
     final paint = Paint()
       ..color = const Color(0x558AB4F8)
       ..strokeWidth = 1;
-    for (var x = firstX;
-        x <= originX + canvasSize.width / scale;
-        x += tileSize) {
+    for (
+      var x = firstX;
+      x <= originX + canvasSize.width / scale;
+      x += tileSize
+    ) {
       final screen = (x - center.x) * scale + canvasSize.width / 2;
       canvas.drawLine(
         Offset(screen, 0),
@@ -1350,9 +1447,11 @@ class _MapPainter extends CustomPainter {
         paint,
       );
     }
-    for (var y = firstY;
-        y <= originY + canvasSize.height / scale;
-        y += tileSize) {
+    for (
+      var y = firstY;
+      y <= originY + canvasSize.height / scale;
+      y += tileSize
+    ) {
       final screen = (y - center.y) * scale + canvasSize.height / 2;
       canvas.drawLine(
         Offset(0, screen),

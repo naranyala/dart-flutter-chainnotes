@@ -81,7 +81,7 @@ More concretely:
 
 ## Where things stand
 
-Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 133/133,
+Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 164/164,
 `flutter build linux --debug`, `--release`, and `flutter build web --release`
 all pass. The full story with reasons is in the
 [current state snapshot](../PYRAMID-OF-INTENTS.md#current-state-snapshot).

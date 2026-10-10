@@ -83,7 +83,10 @@ class _TocViewState extends State<TocView> {
       extensions: const ['json'],
     );
     if (path == null || !mounted) return;
-    final ok = await widget.files.writeTextFile(path, controller.exportTocJson());
+    final ok = await widget.files.writeTextFile(
+      path,
+      controller.exportTocJson(),
+    );
     if (!mounted) return;
     setState(() {
       controller.tocStatus.set(
@@ -107,8 +110,11 @@ class _TocViewState extends State<TocView> {
       });
       return;
     }
-    final title = controller.activeTocItem?.title ??
-        (controller.tocItems.isNotEmpty ? controller.tocItems.first.title : 'outline');
+    final title =
+        controller.activeTocItem?.title ??
+        (controller.tocItems.isNotEmpty
+            ? controller.tocItems.first.title
+            : 'outline');
     try {
       final result = await renderOutlinePdf(
         directory: directory,
@@ -121,14 +127,17 @@ class _TocViewState extends State<TocView> {
       setState(() {
         _lastOutlinePdf = result;
         _busy = false;
-        controller.tocStatus
-            .set('Combined to ${result.name} · ${result.pages} pages.');
+        controller.tocStatus.set(
+          'Combined to ${result.name} · ${result.pages} pages.',
+        );
       });
     } catch (_) {
       setState(() {
         _busy = false;
-        controller.tocStatus.set('The combined PDF could not be written.',
-            error: true);
+        controller.tocStatus.set(
+          'The combined PDF could not be written.',
+          error: true,
+        );
       });
     }
   }
@@ -166,8 +175,10 @@ class _TocViewState extends State<TocView> {
     final paths = item.links.images;
     if (paths.isEmpty) return;
     if (!widget.images.hasImages) {
-      widget.images.setStatus('Open the folder that holds these images.',
-          error: true);
+      widget.images.setStatus(
+        'Open the folder that holds these images.',
+        error: true,
+      );
       return;
     }
     final visible = widget.images.visibleImages;
@@ -177,8 +188,10 @@ class _TocViewState extends State<TocView> {
         return;
       }
     }
-    widget.images.setStatus('Those images are not in the open folder.',
-        error: true);
+    widget.images.setStatus(
+      'Those images are not in the open folder.',
+      error: true,
+    );
   }
 
   void _openLinkedLocation(TocItem item) {
@@ -241,7 +254,10 @@ class _TocViewState extends State<TocView> {
           const w.Eyebrow('TOC MANAGER'),
           Text(
             controller.tocItemLabel,
-            style: const TextStyle(fontSize: 12.5, color: WorkspaceColors.textMuted),
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: WorkspaceColors.textMuted,
+            ),
           ),
           ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 160, maxWidth: 420),
@@ -260,11 +276,15 @@ class _TocViewState extends State<TocView> {
           w.ToolbarButton(
             label: _busy ? 'Combining…' : 'Combine to PDF',
             variant: w.ToolbarVariant.primary,
-            onPressed:
-                controller.tocItems.isEmpty || _busy ? null : _combineToPdf,
+            onPressed: controller.tocItems.isEmpty || _busy
+                ? null
+                : _combineToPdf,
           ),
           if (controller.lastRemoved != null)
-            w.ToolbarButton(label: 'Undo remove', onPressed: controller.undoTocRemoval),
+            w.ToolbarButton(
+              label: 'Undo remove',
+              onPressed: controller.undoTocRemoval,
+            ),
           w.ToolbarButton(
             label: 'Resume writing',
             onPressed: controller.activeTocItem == null
@@ -286,15 +306,20 @@ class _TocViewState extends State<TocView> {
       child: Row(
         children: [
           if (directory.isNotEmpty) ...[
-            const Icon(Icons.folder_outlined, size: 15,
-                color: WorkspaceColors.textMuted),
+            const Icon(
+              Icons.folder_outlined,
+              size: 15,
+              color: WorkspaceColors.textMuted,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 directory,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 12, color: WorkspaceColors.textMuted),
+                  fontSize: 12,
+                  color: WorkspaceColors.textMuted,
+                ),
               ),
             ),
           ] else
@@ -337,6 +362,7 @@ class _TocViewState extends State<TocView> {
                     controller: _titleController,
                     maxLength: 120,
                     style: const TextStyle(fontSize: 13.5),
+                    textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
                       hintText: 'New section title…',
                       counterText: '',
@@ -353,7 +379,10 @@ class _TocViewState extends State<TocView> {
                     items: const [
                       DropdownMenuItem(value: 1, child: Text('H1 · Chapter')),
                       DropdownMenuItem(value: 2, child: Text('H2 · Section')),
-                      DropdownMenuItem(value: 3, child: Text('H3 · Subsection')),
+                      DropdownMenuItem(
+                        value: 3,
+                        child: Text('H3 · Subsection'),
+                      ),
                     ],
                     onChanged: (value) => setState(() => _level = value ?? 1),
                   ),
@@ -408,9 +437,8 @@ class _TocViewState extends State<TocView> {
   void _declare() {
     controller.addTocItem(title: _titleController.text, level: _level);
     if (controller.tocStatus.isError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.tocStatus.message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(controller.tocStatus.message)));
     }
     _titleController.clear();
     setState(() {});
@@ -420,8 +448,10 @@ class _TocViewState extends State<TocView> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: TextFormField(
+        key: const Key('toc-filter-input'),
         controller: _filterController,
         style: const TextStyle(fontSize: 13),
+        textInputAction: TextInputAction.search,
         decoration: const InputDecoration(
           hintText: 'Filter sections…',
           prefixIcon: Icon(Icons.search, size: 16),
@@ -460,8 +490,10 @@ class _TocViewState extends State<TocView> {
         children: const [
           Icon(Icons.list_alt, size: 56, color: WorkspaceColors.border),
           SizedBox(height: 12),
-          Text('No outline items yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(
+            'No outline items yet',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
           SizedBox(height: 6),
           Text(
             'Declare your first section above, then select it to start writing.',
@@ -489,138 +521,148 @@ class _TocViewState extends State<TocView> {
         ),
       ),
       padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-      child: editing ? _editRow(item) : Row(
-        children: [
-          SizedBox(
-            width: indent,
-            child: const SizedBox.shrink(),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: editing
+          ? _editRow(item)
+          : Row(
               children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () => controller.selectTocItem(item),
-                  child: Row(
+                SizedBox(width: indent, child: const SizedBox.shrink()),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: WorkspaceColors.surfaceRaised,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: WorkspaceColors.border),
-                        ),
-                        child: Text(
-                          'H${clampLevel(item.level)}',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: WorkspaceColors.accent,
-                          ),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () => controller.selectTocItem(item),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: WorkspaceColors.surfaceRaised,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: WorkspaceColors.border,
+                                ),
+                              ),
+                              child: Text(
+                                'H${clampLevel(item.level)}',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: WorkspaceColors.accent,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: active
+                                      ? TextDecoration.underline
+                                      : null,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              words == 0
+                                  ? 'no draft yet'
+                                  : '$words words · draft saved',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: WorkspaceColors.textMuted,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            decoration: active
-                                ? TextDecoration.underline
-                                : null,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        words == 0
-                            ? 'no draft yet'
-                            : '$words words · draft saved',
-                        style: const TextStyle(
-                            fontSize: 11.5, color: WorkspaceColors.textMuted),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (item.links.pdfPage != null)
+                            _chip(
+                              'p.${item.links.pdfPage}',
+                              onTap: () => _openLinkedPdf(item),
+                            ),
+                          if (item.links.images.isNotEmpty)
+                            _chip(
+                              'IMG ${item.links.images.length}',
+                              onTap: () => _openLinkedImages(item),
+                            ),
+                          if (item.links.location != null)
+                            _chip(
+                              'LOC',
+                              onTap: () => _openLinkedLocation(item),
+                            ),
+                          if (item.links.images.isEmpty &&
+                              item.links.pdfPage == null &&
+                              item.links.location == null)
+                            const Text(
+                              'no links yet',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: WorkspaceColors.textMuted,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                const SizedBox(width: 8),
+                Column(
                   children: [
-                    if (item.links.pdfPage != null)
-                      _chip(
-                        'p.${item.links.pdfPage}',
-                        onTap: () => _openLinkedPdf(item),
-                      ),
-                    if (item.links.images.isNotEmpty)
-                      _chip(
-                        'IMG ${item.links.images.length}',
-                        onTap: () => _openLinkedImages(item),
-                      ),
-                    if (item.links.location != null)
-                      _chip('LOC', onTap: () => _openLinkedLocation(item)),
-                    if (item.links.images.isEmpty &&
-                        item.links.pdfPage == null &&
-                        item.links.location == null)
-                      const Text(
-                        'no links yet',
-                        style: TextStyle(
-                            fontSize: 11, color: WorkspaceColors.textMuted),
-                      ),
+                    Row(
+                      children: [
+                        _iconButton(
+                          Icons.arrow_upward,
+                          tooltip: 'Move up',
+                          enabled: index > 0 && !filterActive,
+                          onTap: () => controller.moveTocItem(item, -1),
+                        ),
+                        _iconButton(
+                          Icons.arrow_downward,
+                          tooltip: 'Move down',
+                          enabled: index < total - 1 && !filterActive,
+                          onTap: () => controller.moveTocItem(item, 1),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        _iconButton(
+                          Icons.edit_outlined,
+                          tooltip: 'Edit',
+                          onTap: () {
+                            controller.startTocEdit(item);
+                            _editController.text = item.title;
+                            _editLevel = item.level;
+                          },
+                        ),
+                        _iconButton(
+                          Icons.close,
+                          tooltip: 'Remove',
+                          onTap: () {
+                            controller.removeTocItem(item);
+                            setState(() {});
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              Row(
-                children: [
-                  _iconButton(
-                    Icons.arrow_upward,
-                    tooltip: 'Move up',
-                    enabled: index > 0 && !filterActive,
-                    onTap: () => controller.moveTocItem(item, -1),
-                  ),
-                  _iconButton(
-                    Icons.arrow_downward,
-                    tooltip: 'Move down',
-                    enabled: index < total - 1 && !filterActive,
-                    onTap: () => controller.moveTocItem(item, 1),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  _iconButton(
-                    Icons.edit_outlined,
-                    tooltip: 'Edit',
-                    onTap: () {
-                      controller.startTocEdit(item);
-                      _editController.text = item.title;
-                      _editLevel = item.level;
-                    },
-                  ),
-                  _iconButton(
-                    Icons.close,
-                    tooltip: 'Remove',
-                    onTap: () {
-                      controller.removeTocItem(item);
-                      setState(() {});
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 

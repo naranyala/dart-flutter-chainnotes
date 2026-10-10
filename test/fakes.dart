@@ -4,6 +4,15 @@ import 'dart:typed_data';
 import 'package:chainnotes/app/services.dart';
 import 'package:chainnotes/sessions/pdf_backend.dart';
 
+/// A 1x1 transparent PNG: small enough to inline, valid enough to decode —
+/// for tests that need a real image file on disk.
+const List<int> kTinyPng = [
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, //
+  0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, //
+  0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1, //
+  13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+];
+
 /// A scripted `file_selector` stand-in shared by widget tests: pickers return
 /// canned paths (or null for a dismissed dialog), reads serve canned content,
 /// writes are captured. No platform channel involved.
@@ -25,16 +34,14 @@ class FakeFileService extends FileService {
   Future<String?> chooseFile({
     List<String> extensions = const [],
     String label = 'File',
-  }) async =>
-      pickedFile;
+  }) async => pickedFile;
 
   @override
   Future<String?> choosePath({
     required String suggestedName,
     List<String> extensions = const [],
     String label = 'File',
-  }) async =>
-      pickedPath;
+  }) async => pickedPath;
 
   @override
   Future<String?> chooseDirectory({String? confirmButtonText}) async =>
@@ -110,8 +117,7 @@ class FakeEnginePage implements PdfEnginePage {
   Future<Uint8List?> renderBytes({
     required double width,
     required double height,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<void> close() async {}

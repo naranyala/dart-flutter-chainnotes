@@ -113,6 +113,12 @@ void main() {
     expect(loaded.result, WorkspaceStoreResult.tooLarge);
     expect(loaded.data, isNull);
   });
+
+  test('parentOf splits on either separator', () {
+    expect(parentOf('/a/b/workspace.json'), '/a/b');
+    expect(parentOf('C:\\data\\workspace.json'), 'C:\\data');
+    expect(parentOf('workspace.json'), '.');
+  });
 }
 
 void _clean(String path) {

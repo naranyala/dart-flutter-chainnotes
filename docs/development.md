@@ -27,9 +27,9 @@ Run these from the project root.
 
 | Command | What it does |
 | --- | --- |
-| `flutter pub get` | Fetch packages (`path_provider`, `file_selector`, `http`, `pdf`, `pdfx`, `geolocator`) |
+| `flutter pub get` | Fetch packages (`path_provider`, `file_selector`, `http`, `pdf`, `pdfx`, `pdfrx`, `geolocator`) |
 | `flutter analyze` | Static analysis with `analysis_options.yaml`. **Should come back clean** |
-| `flutter test` | Run everything (125 feature tests, 133 total with the docs guard) |
+| `flutter test` | Run everything (156 feature tests, 164 total with the docs guard) |
 | `flutter test test/bridge_test.dart` | Run a single suite while you're working |
 | `flutter test --reporter expanded` | Same run, one line per test |
 | `flutter run -d linux` | Run on your machine with hot reload |

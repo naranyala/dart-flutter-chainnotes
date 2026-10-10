@@ -130,9 +130,10 @@ parent folder name and remembers the path. Two limits keep big folders sane —
 `N images (the scan reached its limit)` instead of quietly cutting off.
 
 **Looking around.** Folder groups with counts on the side, a thumbnail grid,
-and a lightbox you can step through with the keyboard. A restart reopens the
-remembered folder with its recorded group put back; a folder that is gone is
-forgotten with a sentence saying so.
+and a lightbox you can step through with the chevrons, the arrow keys, or a
+horizontal swipe (pinch-zoomed panning never steps by accident). A restart
+reopens the remembered folder with its recorded group put back; a folder
+that is gone is forgotten with a sentence saying so.
 
 **Linking.** `Select outline item` on an image ties it to a heading — the
 other half of the editor's image link, stored as `links.images`.
@@ -155,7 +156,8 @@ original.
 **Places.** Long-press to drop a pin, `Save pin` to name it, `Clear` to
 remove all places, `Import` for a places file (`.csv` or GeoJSON via
 `parsePlacesFile`), and `Attach location` to tie the pin to the selected
-heading. Up to 200 places are kept, in order. Tapping a place — in the list
+heading. Up to 200 places are kept, in order. Clearing all places or all layers asks first; single
+removes stay one tap. Tapping a place — in the list
 or its marker on the canvas — flies to it; `‹ Prev` / `Next ›` steps through
 all of them with wraparound and a `2 of 5` readout, so you can hop between
 locations one tap at a time.

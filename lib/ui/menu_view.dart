@@ -89,73 +89,70 @@ class MenuView extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(-0.4, -0.6),
-                radius: 1.2,
-                colors: [Color(0xFF1B2029), WorkspaceColors.background],
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.4, -0.6),
+            radius: 1.2,
+            colors: [Color(0xFF1B2029), WorkspaceColors.background],
+          ),
+        ),
+        child: Column(
+          children: [
+            _navbar(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const w.Eyebrow('APPLICATIONS'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'What would you like to open?',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Choose a local tool to get started.',
+                      style: TextStyle(color: WorkspaceColors.textMuted),
+                    ),
+                    const SizedBox(height: 24),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Cards fill the whole width at any window size:
+                        // one column on phones, two on narrow windows,
+                        // three beyond that.
+                        final narrow = constraints.maxWidth < 560;
+                        final columns = narrow
+                            ? 1
+                            : constraints.maxWidth < 1100
+                            ? 2
+                            : 3;
+                        return GridView.count(
+                          crossAxisCount: columns,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 18,
+                          crossAxisSpacing: 18,
+                          childAspectRatio: narrow ? 3.2 : 2.4,
+                          children: [
+                            for (final card in cards)
+                              _ToolCard(
+                                data: card,
+                                onTap: () => controller.selectView(card.view),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-            child: Column(
-              children: [
-                _navbar(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const w.Eyebrow('APPLICATIONS'),
-                        const SizedBox(height: 8),
-                        Text(
-                          'What would you like to open?',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Choose a local tool to get started.',
-                          style: TextStyle(color: WorkspaceColors.textMuted),
-                        ),
-                        const SizedBox(height: 24),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            // Cards fill the whole width at any window size:
-                            // one column on phones, two on narrow windows,
-                            // three beyond that.
-                            final narrow = constraints.maxWidth < 560;
-                            final columns = narrow
-                                ? 1
-                                : constraints.maxWidth < 1100
-                                    ? 2
-                                    : 3;
-                            return GridView.count(
-                              crossAxisCount: columns,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              mainAxisSpacing: 18,
-                              crossAxisSpacing: 18,
-                              childAspectRatio: narrow ? 3.2 : 2.4,
-                              children: [
-                                for (final card in cards)
-                                  _ToolCard(
-                                    data: card,
-                                    onTap: () =>
-                                        controller.selectView(card.view),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -5,7 +5,7 @@ could be wrong. Nothing below the smoke test needs a screen, a network, or a
 real file on disk.
 
 ```sh
-flutter test                                          # everything, 125 feature + 8 guard
+flutter test                                          # everything, 156 feature + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # should stay clean too
@@ -20,10 +20,11 @@ flutter analyze                                       # should stay clean too
 | `test/metrics_test.dart` | 12 | Welford engine: precision, and bad values never corrupt state |
 | `test/bridge_test.dart` | 11 | Request parsing, success shape, error codes and envelope |
 | `test/tile_policy_test.dart` | 9 | Tile limits (how many at once, spacing, backoff) and old-first disk cleanup |
-| `test/tools_interaction_test.dart` | 23 | Outline add/move/undo/filter, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, picker cancellations, lightbox |
-| `test/package_integration_test.dart` | 15 | Pickers with fakes, location denied/disabled/fix, PDF rendering and outline reading, open paths, plus a real `pdfrx` open-and-render on Linux |
-| `test/app_smoke_test.dart` | 3 | The window opens with the real footer, all six views render, the menu navbar spans the window, and the menu button goes home |
+| `test/tools_interaction_test.dart` | 36 | Outline add/move/undo/filter, keyboard actions, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, attach errors, import reports, picker cancellations, marker targets, lightbox swipe, clear confirms, lightbox |
+| `test/package_integration_test.dart` | 25 | Pickers with fakes, location denied/disabled/forever/failing, PDF rendering and outline reading, open paths, real `pdfrx` render, file limits, naming, image scan limits |
+| `test/app_smoke_test.dart` | 5 | The window opens with the real footer, all six views render, the menu navbar spans the window, switches settle, back goes home, and the menu button goes home |
 | `test/boot_reopen_test.dart` | 5 | Restart reopens the remembered PDF/folder; gone paths are forgotten with a sentence |
+| `test/theme_test.dart` | 1 | Press feedback ripples on touch, stays flat on desktop |
 
 The pattern throughout: every layer can be tested **without the one above
 it**. Core tests need no widgets, widget tests need no network or file
@@ -62,11 +63,12 @@ or a folder-where-a-file-should-be fails with a message.
 
 ### Startup wiring — `boot_composition_test.dart`
 
-Three tests for one past bug. `readBootCache` and `startPersistence` are
+Four tests for one past bug. `readBootCache` and `startPersistence` are
 public so the wiring can be tested without widgets: a newer durable copy is
-applied, an older one leaves the boot state alone, and a damaged boot cache
-becomes an empty workspace. Undoing the one-line fix in `main.dart` fails the
-first test — see [TODO-001](../TODOS.md).
+applied, an older one leaves the boot state alone, a damaged boot cache
+becomes an empty workspace, and hydration is a no-op without a native store.
+Undoing the one-line fix in `main.dart` fails the first test — see
+[TODO-001](../TODOS.md).
 
 ### Metrics — `metrics_test.dart`
 
@@ -84,9 +86,25 @@ non-finite values are `INVALID_VALUE`, null is rejected, and the error shape
 holds. The format itself is in
 [bridge protocol](bridge-protocol.md#metrics-envelope).
 
+### Tile cache — `tile_cache_test.dart`
+
+The network path the gate tests never touch: a 200 with a real PNG decodes
+to a 256 px tile and is remembered, memory serves it without a second
+request, a fresh cache serves it from disk with zero requests, and 404s and
+corrupt bytes are misses that are never remembered (the 404 retry waits out
+the request gate's spacing first).
+
+### Platform renderer gates — `package_integration_test.dart`
+
+`PdfxOpener`/`PdfrxOpener` report support per platform
+(`debugDefaultTargetPlatformOverride` drives the matrix: mobile and
+macOS/Windows → pdfx, Linux → pdfrx, Fuchsia → neither) and
+`platformPdfOpener()` picks the matching one — so the "which renderer runs
+here" decision is pinned without touching any native code.
+
 ### Window smoke test — `app_smoke_test.dart`
 
-The only tests that build widgets. The first opens the real composition root
+The shell-level widget tests. The first opens the real composition root
 with the real status-bar footer, checks the menu, then walks **all six
 views** — menu, outline, editor, PDF, images, map — making sure each renders
 without a Flutter error and nothing overflows. That overflow check earned its
@@ -99,7 +117,7 @@ asserts the menu navbar spans the full window width at 1600 px.
 
 | Gap | What it means |
 | --- | --- |
-| Main flows only | Pickers, locate, open paths, and picker cancellations (TOC import/export/combine, PDF open) are covered; image-folder and map-file cancellations are not — [TODO-007](../TODOS.md) |
+| Main flows only | Pickers, locate, open paths, and picker cancellations (TOC import/export/combine, PDF open) are covered; image-folder and map-file cancellations are not yet |
 | PDF rendering | `pdfrx` opens and renders a real PDF on Linux (skips only where the PDFium native asset is missing); `pdfx` paths elsewhere are seam-tested with fakes |
 | CI is green | The workflow runs analyze, test, and the Linux debug build on every push — [TODO-005](../TODOS.md) |
 | No network or tiles | `TileCache` never hits HTTP in tests; failure paths are unit-tested only |
