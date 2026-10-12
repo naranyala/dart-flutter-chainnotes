@@ -5,7 +5,7 @@ could be wrong. Nothing below the smoke test needs a screen, a network, or a
 real file on disk.
 
 ```sh
-flutter test                                          # everything, 156 feature + 8 guard
+flutter test                                          # everything, 158 feature + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # should stay clean too
@@ -15,13 +15,14 @@ flutter analyze                                       # should stay clean too
 | --- | ---: | --- |
 | `test/workspace_test.dart` | 14 | Bad input becomes a safe record, and a good record round-trips |
 | `test/persistence_test.dart` | 17 | Debounce timing, write order, boot merging, save labels, flush on close, and mode after restore |
-| `test/workspace_store_test.dart` | 13 | Atomic saves, the 4 MiB limit checked before reading, result codes |
-| `test/boot_composition_test.dart` | 3 | Startup wires in the *boot cache* — not a fresh snapshot |
+| `test/workspace_store_test.dart` | 14 | Atomic saves, the 4 MiB limit checked before reading, result codes |
+| `test/boot_composition_test.dart` | 4 | Startup wires in the *boot cache* — not a fresh snapshot |
 | `test/metrics_test.dart` | 12 | Welford engine: precision, and bad values never corrupt state |
 | `test/bridge_test.dart` | 11 | Request parsing, success shape, error codes and envelope |
 | `test/tile_policy_test.dart` | 9 | Tile limits (how many at once, spacing, backoff) and old-first disk cleanup |
 | `test/tools_interaction_test.dart` | 36 | Outline add/move/undo/filter, keyboard actions, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, attach errors, import reports, picker cancellations, marker targets, lightbox swipe, clear confirms, lightbox |
 | `test/package_integration_test.dart` | 25 | Pickers with fakes, location denied/disabled/forever/failing, PDF rendering and outline reading, open paths, real `pdfrx` render, file limits, naming, image scan limits |
+| `test/tile_cache_test.dart` | 5 | Tile fetch, decode, memory/disk cache, misses |
 | `test/app_smoke_test.dart` | 5 | The window opens with the real footer, all six views render, the menu navbar spans the window, switches settle, back goes home, and the menu button goes home |
 | `test/boot_reopen_test.dart` | 5 | Restart reopens the remembered PDF/folder; gone paths are forgotten with a sentence |
 | `test/theme_test.dart` | 1 | Press feedback ripples on touch, stays flat on desktop |

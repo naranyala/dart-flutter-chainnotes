@@ -104,7 +104,7 @@ class Eyebrow extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 11,
+        fontSize: 12,
         letterSpacing: 1.4,
         fontWeight: FontWeight.w700,
         color: WorkspaceColors.textMuted,
@@ -192,12 +192,12 @@ class MenuGridButton extends StatelessWidget {
     return IconButton(
       key: const Key('show-menu-grid'),
       tooltip: 'Show menu grid',
-      iconSize: 20,
+      iconSize: 16,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       color: WorkspaceColors.textMuted,
       onPressed: () => controller.selectView('menu'),
-      icon: const Icon(Icons.grid_view),
+      icon: const Icon(Icons.grid_view, size: 16),
     );
   }
 }

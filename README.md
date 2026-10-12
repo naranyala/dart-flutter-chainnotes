@@ -46,10 +46,10 @@ flutter run -d linux
 ```
 
 `flutter analyze` should come back clean and `flutter test` should pass —
-right now that's **156 feature tests across thirteen suites (164 total with the
+right now that's **158 feature tests across thirteen suites (166 total with the
 docs guard)**.
 Checked on 2026-10-08 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
-clean, 164/164 tests, `flutter build linux --debug` works. For setup steps,
+clean, 166/166 tests, `flutter build linux --debug` works. For setup steps,
 the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
@@ -196,10 +196,6 @@ TODOS.md                       The backlog, every item linked to an intent
 
 Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
 
-* Closing the window inside the 250 ms save window can lose what you just
-  typed ([TODO-003](./TODOS.md)).
-* The save label counts saves made in this run, so it says `not saved` right
-  after a restore until you type again ([TODO-004](./TODOS.md)).
 * The release app builds and first launch is timed (see Platforms above).
 * The store flushes but doesn't `fsync` the file or its folder, so losing
   power can drop the last save even after `ok` ([TODO-009](./TODOS.md)).

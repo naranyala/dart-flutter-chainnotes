@@ -682,7 +682,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                     child: Text(
                       '© OpenStreetMap contributors',
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 12,
                         color: WorkspaceColors.text.withValues(alpha: 0.75),
                         decoration: TextDecoration.underline,
                       ),
@@ -749,7 +749,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
             children: [
               Icon(
                 Icons.flag,
-                size: 13,
+                size: 16,
                 color: selected
                     ? WorkspaceColors.accentInk
                     : WorkspaceColors.accent,
@@ -761,7 +761,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                   place.label,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
                     color: selected
                         ? WorkspaceColors.accentInk
                         : WorkspaceColors.text,
@@ -784,7 +784,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
     child: Text(
       text,
       style: const TextStyle(
-        fontSize: 11.5,
+        fontSize: 12,
         color: Colors.white,
         fontFeatures: [],
       ),
@@ -813,7 +813,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
         '${(bearing ?? 0).toStringAsFixed(0).padLeft(3, '0')}° '
         '${compassPoint(bearing)} · ${formatDistance(distance)} · '
         '${formatDistanceImperial(distance)}',
-        style: const TextStyle(fontSize: 11.5, color: Colors.white),
+        style: const TextStyle(fontSize: 12, color: Colors.white),
       ),
     );
   }
@@ -868,7 +868,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
           const SizedBox(height: 3),
           Text(
             '${formatDistance(chosen)} · ${formatDistanceImperial(chosen)}',
-            style: const TextStyle(fontSize: 10.5, color: Colors.white),
+            style: const TextStyle(fontSize: 12, color: Colors.white),
           ),
         ],
       ),
@@ -1008,7 +1008,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                     IconButton(
                       tooltip: 'Remove layer',
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.close, size: 15),
+                      icon: const Icon(Icons.close, size: 16),
                       onPressed: () => session.removeLayer(layer),
                     ),
                   ],
@@ -1253,7 +1253,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
               child: Text(
                 '↳ ${formatDistance(leg)}',
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 12,
                   color: WorkspaceColors.textMuted,
                 ),
               ),
@@ -1310,7 +1310,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                           '${place.lat.toStringAsFixed(5)}, '
                           '${place.lon.toStringAsFixed(5)}',
                           style: const TextStyle(
-                            fontSize: 10.5,
+                            fontSize: 12,
                             color: WorkspaceColors.textMuted,
                           ),
                         ),
@@ -1321,7 +1321,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                 IconButton(
                   tooltip: 'Link to outline item',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.link, size: 15),
+                  icon: const Icon(Icons.link, size: 16),
                   onPressed: controller.linkTarget == null
                       ? null
                       : () {
@@ -1332,7 +1332,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                 IconButton(
                   tooltip: 'Rename',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.edit_outlined, size: 15),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
                   onPressed: () {
                     _renamingPlaceId = place.id;
                     _renameController.text = place.label;
@@ -1342,7 +1342,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                 IconButton(
                   tooltip: 'Remove',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close, size: 15),
+                  icon: const Icon(Icons.close, size: 16),
                   onPressed: () {
                     controller.removePlace(place);
                     setState(() {});

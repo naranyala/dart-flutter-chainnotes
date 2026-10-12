@@ -81,6 +81,9 @@ void main() {
       expect(controller.tocItems, isEmpty);
       expect(controller.tocStatus.isError, isTrue);
       expect(controller.tocStatus.message, contains('heading title'));
+      // Single feedback channel (TODO-023): status line only, no SnackBar.
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.byKey(const Key('toc-manager-status')), findsOneWidget);
     });
 
     testWidgets('moving a section down swaps the visible order', (
@@ -194,6 +197,34 @@ void main() {
       ], 'doc.pdf');
       expect(added, 1);
       expect(controller.tocItems.single.links.pdfPage, 2);
+    });
+
+    test('same headings from a different PDF are not skipped as duplicates', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      expect(
+        controller.importPdfHeadings([
+          {'title': 'Intro', 'level': 1, 'page': 2},
+        ], 'a.pdf'),
+        1,
+      );
+      expect(
+        controller.importPdfHeadings([
+          {'title': 'Intro', 'level': 1, 'page': 2},
+        ], 'b.pdf'),
+        1,
+      );
+      expect(controller.tocItems, hasLength(2));
+    });
+
+    test('re-saving a place adopts the new label', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addPlace(lat: 10, lon: 10, label: 'Old');
+      final updated =
+          controller.addPlace(lat: 10, lon: 10, label: 'New')!;
+      expect(updated.label, 'New');
+      expect(controller.map.places.single.label, 'New');
     });
 
     testWidgets('cancelling the JSON import leaves the outline alone', (

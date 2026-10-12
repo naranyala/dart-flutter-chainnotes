@@ -593,7 +593,7 @@ class _PdfViewState extends State<PdfView> {
                           await pdf.openAt(path);
                           if (mounted) setState(() {});
                         },
-                        icon: const Icon(Icons.history, size: 15),
+                        icon: const Icon(Icons.history, size: 16),
                         label: Text(
                           path,
                           maxLines: 1,

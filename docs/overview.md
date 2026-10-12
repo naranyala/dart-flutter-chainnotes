@@ -94,7 +94,7 @@ What works:
   saving with a flush on hide/close, Welford metrics, the bridge format,
   map projection, bounded tile fetching, a PDF outline reader, and an
   outline-to-PDF writer.
-- 125 feature tests plus 8 docs tests, including widget tests and fakes for
+- 158 feature tests plus 8 docs tests, including widget tests and fakes for
   pickers, location, and PDF opening that run without a device.
 
 Things worth knowing before you build on it:

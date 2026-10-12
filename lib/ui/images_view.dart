@@ -242,7 +242,7 @@ class _ImagesViewState extends State<ImagesView> {
             ),
             child: Text(
               '${group.images.length}',
-              style: const TextStyle(fontSize: 11),
+              style: const TextStyle(fontSize: 12),
             ),
           ),
         ],
@@ -287,6 +287,7 @@ class _ImagesViewState extends State<ImagesView> {
                         errorBuilder: (_, _, _) => const Center(
                           child: Icon(
                             Icons.broken_image_outlined,
+                            size: 16,
                             color: WorkspaceColors.textMuted,
                           ),
                         ),
@@ -302,7 +303,7 @@ class _ImagesViewState extends State<ImagesView> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           color: WorkspaceColors.textMuted,
                         ),
                       ),
@@ -373,7 +374,7 @@ class _ImagesViewState extends State<ImagesView> {
                       width: double.infinity,
                       child: TextButton.icon(
                         onPressed: () => _chooseDirectory(path: path),
-                        icon: const Icon(Icons.history, size: 15),
+                        icon: const Icon(Icons.history, size: 16),
                         label: Text(
                           path,
                           maxLines: 1,
@@ -584,7 +585,7 @@ class _LightboxState extends State<_Lightbox> {
                         session.closeLightbox();
                         Navigator.of(context).maybePop();
                       },
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close, size: 16, color: Colors.white),
                     ),
                   ),
                   if (visible.length > 1) ...[

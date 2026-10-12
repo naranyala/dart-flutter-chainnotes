@@ -225,7 +225,7 @@ Already present and working:
   remembered PDF at its recorded page/zoom and the image folder at its
   recorded group; gone paths are forgotten with a sentence — **I2.1**.
   Locked by `test/boot_reopen_test.dart` (TODO-016 closed).
-- 164 tests: metrics (12), bridge (11), store (14), normalizer (14),
+- 166 tests: metrics (12), bridge (11), store (14), normalizer (14),
   persistence merge + modes (17), boot composition (4), tile gate + eviction
   (9), tile cache (5), tool interactions (36), third-party seams (25),
   shell smoke (5), boot reopen (5), theme (1), docs guard (8) — **I4.1**.
@@ -261,19 +261,13 @@ Already present and working:
 
 Known gaps, in the order they should be closed:
 
-- **Interaction coverage is core flows plus picker cancellations.** TOC
-  import/export/combine and PDF-open cancel paths are tested; image-folder
-  and map-file cancellations are not — **I4.1**. (TODO-007 closed.)
 - **Unbuilt platforms.** Windows, macOS, Android, and iOS targets exist with
   plugin dependencies unverified there, and location has never been exercised
   on a device — **I4.3**. TODO-010.
-- **Remembered documents are not reopened.** A restart restores the record
-  (path, page, zoom, folder, viewport) but the PDF and the image folder must
-  be picked again from their remembered lists — **I2.1**. TODO-016.
-- **PDF pages render on Linux.** `pdfrx` (PDFium) renders where `pdfx` ships
-  no backend; the `PdfOpener` seam picks per platform behind engine-neutral
-  handles, and outline parsing stays pure Dart — **I4.4**, **I4.3**.
-  (TODO-017 closed).
+- **Audit findings TODO-028–TODO-044.** Crash/DoS/data-loss fixes (028–030),
+  dependability fixes (031–037), and polish/coverage work (024, 038–044) are
+  tracked in `TODOS.md`; closed items (TODO-007, TODO-016, TODO-017) no longer
+  appear here as gaps.
 
 ## Appendix — how the app is shaped: input → process → output
 

@@ -104,8 +104,8 @@ date. Deleting `<cache>/tiles` forces fresh downloads.
 
 Not included. The `googleMap` record section still loads and saves so a
 workspace from elsewhere keeps its data, but nothing draws it and no Google
-address is contacted. Whether to build that here — with proper keys, billing,
-and terms — is still open ([TODO-013](../TODOS.md)).
+address is contacted. By decision there is no viewer
+([TODO-013](../TODOS.md) closed).
 
 ## Places and layers
 

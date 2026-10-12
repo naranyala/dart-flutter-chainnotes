@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -48,11 +49,10 @@ Future<void> main() async {
   final images = ImageSession(controller);
   final map = MapSession(controller);
 
-  // Bring back what the last run remembered: the open document at its
-  // recorded page/zoom and the browsed folder at its recorded group. Gone
-  // files get a sentence instead of a silent empty tool (TODO-016).
-  await reopenRemembered(pdf: pdf, images: images, controller: controller);
-
+  // Bring back what the last run remembered without blocking first frame:
+  // runApp shows immediately, then the recorded PDF and image folder reopen
+  // in parallel (PDF full-file read + folder scan no longer sum). Gone files
+  // get a sentence instead of a silent empty tool (TODO-016, TODO-039).
   runApp(WorkspaceApp(
     controller: controller,
     persistence: persistence,
@@ -64,6 +64,7 @@ Future<void> main() async {
       cacheDirectory: Directory('${directories.cache.path}/tiles'),
     ),
   ));
+  unawaited(reopenRemembered(pdf: pdf, images: images, controller: controller));
 }
 
 /// Reopens what the last run remembered so a restart lands where you were:
@@ -75,38 +76,53 @@ Future<void> reopenRemembered({
   required ImageSession images,
   required WorkspaceController controller,
 }) async {
-  final pdfPath = controller.pdf.path;
-  if (pdfPath.isNotEmpty) {
-    if (!File(pdfPath).existsSync()) {
-      controller.forgetPdfPath(pdfPath);
-      pdf.setStatus(
-          'The remembered document is gone — pick it again to reopen it.',
-          error: true);
-    } else {
-      // openAt applies the recorded page (clamped) and zoom, remembers the
-      // path again, and reports a sentence when the file won't open.
-      await pdf.openAt(pdfPath);
-    }
-  }
+  // PDF and image restores are independent (different sessions/fields), so
+  // run them together instead of summing a full-file read and a folder scan.
+  await Future.wait([
+    _reopenPdf(pdf: pdf, controller: controller),
+    _reopenImages(images: images, controller: controller),
+  ]);
+}
 
+Future<void> _reopenPdf({
+  required PdfSession pdf,
+  required WorkspaceController controller,
+}) async {
+  final pdfPath = controller.pdf.path;
+  if (pdfPath.isEmpty) return;
+  if (!File(pdfPath).existsSync()) {
+    controller.forgetPdfPath(pdfPath);
+    pdf.setStatus(
+        'The remembered document is gone — pick it again to reopen it.',
+        error: true);
+  } else {
+    // openAt applies the recorded page (clamped) and zoom, remembers the
+    // path again, and reports a sentence when the file won't open.
+    await pdf.openAt(pdfPath);
+  }
+}
+
+Future<void> _reopenImages({
+  required ImageSession images,
+  required WorkspaceController controller,
+}) async {
   final directory = controller.images.directoryPath;
-  if (directory.isNotEmpty) {
-    if (!Directory(directory).existsSync()) {
-      controller.forgetImageDirectory(directory);
-      images.setStatus(
-          'The remembered folder is gone — pick it again to reopen it.',
-          error: true);
-    } else {
-      // openAt resets the group to 'All Images'; capture the recorded one
-      // first so it can be put back when it still exists.
-      final recordedGroup = controller.images.selectedGroup;
-      final opened = await images.openAt(directory);
-      if (opened &&
-          recordedGroup.isNotEmpty &&
-          recordedGroup != 'All Images' &&
-          images.groups.any((group) => group.name == recordedGroup)) {
-        images.selectGroup(recordedGroup);
-      }
+  if (directory.isEmpty) return;
+  if (!Directory(directory).existsSync()) {
+    controller.forgetImageDirectory(directory);
+    images.setStatus(
+        'The remembered folder is gone — pick it again to reopen it.',
+        error: true);
+  } else {
+    // openAt resets the group to 'All Images'; capture the recorded one
+    // first so it can be put back when it still exists.
+    final recordedGroup = controller.images.selectedGroup;
+    final opened = await images.openAt(directory);
+    if (opened &&
+        recordedGroup.isNotEmpty &&
+        recordedGroup != 'All Images' &&
+        images.groups.any((group) => group.name == recordedGroup)) {
+      images.selectGroup(recordedGroup);
     }
   }
 }

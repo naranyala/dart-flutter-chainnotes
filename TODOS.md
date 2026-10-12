@@ -15,13 +15,100 @@ Priority levels:
 
 ## P0 — Make the documented product work end to end
 
-No open P0 items. TODO-003, TODO-004, and TODO-006 closed with evidence
-below.
+### TODO-028 — Fix PDF reader page-state loss and scroll crash
+
+- **Intent:** I2.1, I2.3, I3.1
+- **Priority:** P0
+- **Work:** `_onScroll`/`_goToPage` (`lib/ui/pdf_view.dart:66-74,525-529`) write `controller.pdf.page` directly so `navigateToPage` (`lib/sessions/pdf_session.dart:143`) early-returns and skips `touch()`+`setStatus` (page never persists, badge/highlight stale); `_scrollToPage` (`:98-111`) reads `position` with no `hasClients` guard (crash on open-from-empty); `_openPdf` vs `_openText` (`:113-136`) diverge (empty-state open leaves stale `_currentPage`/offset); `_currentPage = page.clamp(1,1)` (`:44`) is always 1; `_PdfPage.didUpdateWidget` + `renderPage` cache (`pdf_view.dart:654-665`, `pdf_session.dart:163-169`) show stale doc/resolution; failed open (`pdf_session.dart:80-110`) leaves stale `pageCount/openPath/cache`.
+- **Done when:** Scroll/Prev/Next persists page + updates status; open-from-empty never throws; single open path; remembered page restored; switching docs with equal page counts shows the new doc; failed open clears stale state. Locked by widget/unit tests.
+
+### TODO-029 — Fix PDF outline parser truncation and DoS fan-out
+
+- **Intent:** I3.2, I4.1
+- **Priority:** P0
+- **Work:** `lib/core/pdf/pdf_outline.dart:80-111` recurses both `/First` and `/Next` with `depth+1` (flat 40-sibling outline truncated at ~32 despite 2000-entry cap) and no `visited` set (`/First=X /Next=X` → ~2³² visits → hang/OOM; same in `pageNumbers():336-351`); `dictValue (:230-260)` uses substring `indexOf` so `/Title (see /First notes)` mis-parses.
+- **Done when:** 40-sibling flat outline fully parses; self-referential outline returns promptly without hang; `dictValue` ignores keys inside literal strings. Locked by parser unit tests.
+
+### TODO-030 — Fix snapshot aliasing, duplicate TOC ids, attach round-trip loss
+
+- **Intent:** I1.3, I3.1, I3.2
+- **Priority:** P0
+- **Work:** `WorkspaceController.snapshot()/apply() (:136-158)` alias collections by reference (pending payload mutates); `normalizeTocItems` (`workspace_models.dart:212-220`) has no id dedup unlike `normalizePlaces`, and import (`workspace_controller.dart:444-449`, comment `:395`) lets crafted `id` overwrite `nextTocId()` → duplicate ids; `attachPdfPage (:343-355)` stores raw int and `attachLocation (:357-368)` stores un-normalized `Location` while `normalizeLinks` rejects `<=0`/out-of-range → `attachPdfPage(0)` persists `0`, restart → null.
+- **Done when:** Snapshot is a deep copy; crafted duplicate-id import dedups; `attachPdfPage(0)` round-trips to the same value after normalize; invalid attach rejected up front. Locked by unit tests.
 
 ## P1 — Make the workspace dependable
 
-No open P1 items. TODO-005, TODO-007, and TODO-016 closed with evidence
-below.
+### TODO-031 — Fix image open failures leaving stale grids
+
+- **Intent:** I2.2, I2.1
+- **Priority:** P1
+- **Work:** `ImageSession.openAt` non-existent path (`lib/sessions/image_session.dart:104-111`) sets error without `notifyListeners()` and never `forgetImageDirectory` (unlike `PdfSession.openAt` + `main.dart:94-98`); empty-folder path (`:167-171`) returns false without clearing `images/groups`, so browse-A → browse-empty-B keeps showing A under an error.
+- **Done when:** Bad-folder open notifies + prunes remembered entry; empty-folder open clears grid or shows explicit empty, never stale A. Locked by session tests.
+
+### TODO-032 — Surface attach failures instead of silent no-ops
+
+- **Intent:** I2.2, I1.1
+- **Priority:** P1
+- **Work:** `attachPin/PlaceToSection` (`lib/sessions/map_session.dart:256-261,273-276`) notify with no status when `attachLocation` returns false; `_attachPage` (`lib/ui/pdf_view.dart:138-152`) returns silently when `!isOpen` and sets no PDF-side status on save-error; `attachCurrentToSection` (`lib/sessions/image_session.dart:223-232`) sets status only on success.
+- **Done when:** Every attach failure path sets a status sentence in the tool where the button was pressed. Locked by widget tests.
+
+### TODO-033 — Reconcile link-target fallback, editor chips, back behavior
+
+- **Intent:** I1.1, I2.3, I2.2
+- **Priority:** P1
+- **Work:** `linkTarget` getter (`lib/app/workspace_controller.dart:103-108`) falls back to `activeTocItem` while all three attach dropdowns (`pdf_view.dart:370-380`, `images_view.dart:654-690`, `map_view.dart:474-510`) display `linkTargetId` and buttons test `linkTarget==null` (dropdown says none, Attach still enabled); editor PDF/Location chips (`lib/ui/editor_view.dart:295-304`) only `selectView` instead of `navigateToPage/openLightbox/flyTo` like TOC chips; system back (`lib/ui/shell.dart:90-96`) jumps to menu even mid-rename/TOC-edit (`map_view.dart:1336-1340`, `toc_view.dart:644-648`).
+- **Done when:** Dropdown display, button enablement, and attach target agree; editor chips navigate to the linked page/place; back cancels inline edit before leaving the tool. Locked by widget tests.
+
+### TODO-034 — Fix tile cache LRU, UI-thread IO, backoff, dateline keys
+
+- **Intent:** I1.6, I3.2, I3.4
+- **Priority:** P1
+- **Work:** `TileCache.tile()` (`lib/core/map/tile_source.dart:52-54`) never promotes in `_order` so eviction (`:71-78`) is FIFO not LRU; `_readBytes`/`_enforceDiskBounds` (`:103,151,162-176`) run `existsSync/listSync(recursive)/lengthSync/stat/deleteSync` on the UI isolate per tile; `TileRequestGate.onError (:64-66)` never touches backoff and `onResult` ignores non-429/5xx/200 so 404s poison the failure counter and timeouts never back off (`lib/core/map/tile_policy.dart:47-66`); tile key uses raw `x` instead of `wrappedX` (`lib/core/map/projection.dart:132-144`) → permanent dateline misses.
+- **Done when:** Recently-used tiles survive eviction; disk bounds enforced off the UI thread (or bounded); timeouts back off and 404s don't escalate; dateline tiles hit cache. Locked by cache/policy unit tests.
+
+### TODO-035 — Fix map/geo parsing and formatting
+
+- **Intent:** I1.6, I2.3
+- **Priority:** P1
+- **Work:** `Polygon` GeoJSON (`lib/sessions/map_session.dart:637-640`) wraps `ring(coordinates)` one level shallow → every valid Polygon errors; CSV detector (`:513-514`) only `lat`+`lon|lng`, missing `latitude`/`longitude`/`long` and BOM (`\uFEFFlat`); `bearingDegrees(A,A)` returns 0 not null and `formatDistance(999.6)` → `1000 m` / `0.004` → `0 cm` (`lib/core/geo/geo.dart:92-111`); `normalizeLocation` accepts `lat=90` but renderer clamps to 85.05 with no warning (`geo.dart:55-61` + `projection.dart:42-51`); map flight (`lib/ui/map_view.dart:142-157`) lerps longitude linearly across the dateline.
+- **Done when:** Valid Polygon draws; latitude/longitude/long+BOM CSVs import; coincident-point bearing is null, 999.6 m formats as km; pole places warn or clamp visibly; +179°→−179° flies 2° not 358°. Locked by session/geo tests.
+
+### TODO-036 — Close persistence portability and writer gaps
+
+- **Intent:** I1.3, I4.3
+- **Priority:** P1
+- **Work:** `WorkspaceStore.save` (`lib/core/workspace/workspace_store.dart:90-99`) uses `renameSync` over existing target (throws on Windows → every save after the first fails); `persist()/flush()` (`workspace_persistence.dart:137-175`) return cache result not durable result; `formatBridgeDouble` (`metrics_engine.dart:128-133`) calls `toInt()` for `|v|<1e21` but int64 max is ~9.2e18 (`summarize([1e20])` throws/wraps); outline writer (`outline_pdf_writer.dart:48-50,142-144`) exceeds its 120-char cap (124), overwrites silently, accepts `directory=''` → `/name` (fs root).
+- **Done when:** Save overwrites atomically on Windows; flush return reflects durable outcome; 1e20 formats without throw; writer caps names, refuses overwrite or documents it, rejects empty dir. Locked by store/bridge/writer tests.
+
+### TODO-037 — Fix picker error handling, permission forever, export names
+
+- **Intent:** I2.2, I3.4, I3.3
+- **Priority:** P1
+- **Work:** `chooseFile/choosePath` (`lib/app/services.dart:32-55`) swallow platform exceptions as null (callers treat as silent cancel); `chooseDirectory (:12-14)` has no try (escapes `_combineToPdf`, try only around renderer); `MapSession` locate (`map_session.dart:298-302`) lumps `deniedForever` with transient deny (infinite retry, no settings guidance); `suggestFileName (:111-122)` allows trailing dot/space and leading-dot hidden files (`"My Report. "` → `"My Report..json"`).
+- **Done when:** Picker errors surface a status sentence distinct from cancel; directory-picker throw is caught; deniedForever directs to settings; export names strip trailing dots/spaces and leading dots. Locked by widget/unit tests.
+
+### TODO-045 — Fill core model/store/persistence test gaps
+
+- **Intent:** I4.1, I3.2
+- **Priority:** P1
+- **Work:** `workspace_test` misses `asZoom` NaN/Inf→1.1 + 0.6 floor, `asPage` truncation/Inf/string, `asString` limits, 64-image/80-label/4096-path caps, `normalizePlace` auto-id/`createdAt`/lon-wrap/1e6-rounding/`lon>180`, map sidebar/cursor/filter defaults, `version→1`; `store_test` has tautology message loop, ASCII-only cap, untested `path.isEmpty`/symlink/`ensureDirectory`/`parentOf('/f')`/TOCTOU growth; `persistence_test` never reaches `userInteracted` via engine (hardcoded false), `_lastDurablePayload` dedup, `onFailure` both-fail, `onChanged`, `clearSaveReport` scope, `WRITE/READ_FAILED` codes, `clock` injection, empty-string durable.
+- **Done when:** Each branch above has a unit test; tautology loops assert real mappings. Locked by expanded suites.
+
+### TODO-046 — Fill metrics/bridge/tile test gaps
+
+- **Intent:** I4.1, I4.2
+- **Priority:** P1
+- **Work:** `metrics_test` misses `count==i64max`, `nextMean/M2` overflow (only sum path covered), tiny-negative `M2` clamp, `summarize` overflow→null, `writeSummaryJson/formatBridgeDouble` (incl. 1e20 `toInt` overflow); `bridge_test` misses `\r` separator, `ENGINE_FAILED` via overflow, lone `+/-/1e/.5`, `INF/NAN/+NaN`, `jsonString` escapes, whitespace-only tail; `tile_policy_test` misses `maxBackoffMs` cap, `onError`/underflow, non-429 4xx; `tile_cache_test` misses gate-closed miss, timeout→`onError`, empty-disk fallthrough, poisoned-disk refetch, `_inflight` dedup, UA/URL.
+- **Done when:** Each branch above has a unit test. Locked by expanded suites.
+
+### TODO-047 — Fill widget/integration path gaps
+
+- **Intent:** I4.1, I2.2
+- **Priority:** P1
+- **Work:** `tools_interaction` has 1 editor + 1 PDF widget test, most map/attach/import controller-only; missing image-dir/map-file cancel widgets, export-failure (`writeTextFile==false` unrepresentable in `FakeFileService`), attach-failure/cap paths, editor cursor, lightbox zoom/pinch/keys, dateline/`Polygon`, CSV variants (quoted/headerless/`;`/caps); `package_integration` misses cancel variants, CSV aliases, GeoJSON-via-import, PDF null-render/zero-byte/passworded; `FakeFileService` falls through to real FS for unlisted paths and `FakeEnginePage.renderBytes` is always null.
+- **Done when:** Cancel/failure/cap/CSV/GeoJSON/editor-cursor paths have widget tests; fakes support failure injection without real-FS fallthrough. Locked by expanded suites.
+
+TODO-005, TODO-007, and TODO-016 closed with evidence below.
 
 ## P2 — Keep it maintainable and portable
 
@@ -44,20 +131,39 @@ below.
 
 TODO-018–TODO-022 (frontend interaction polish) closed with evidence below.
 
+### TODO-038 — Fix editor sync, lightbox zoom, badges, stale selections
+
+- **Intent:** I2.1, I2.3
+- **Priority:** P2
+- **Work:** Editor post-frame sync (`lib/ui/editor_view.dart:68-86`) applies stale `wantText` and forces cursor to end, queuing multiple callbacks; lightbox `_zoom` (`lib/ui/images_view.dart:429-499`) never resets on step (next image opens zoomed); menu badges (`lib/ui/menu_view.dart:89-90` vs `:73,79,85`) listen to controller only, missing session notifies; unknown image group (`image_session.dart:63-83`) shows All with stale badge; `removePlace/clearPlaces` (`workspace_controller.dart:558-561`) leave dangling `MapSession.selectedPlaceId`; TOC row `_iconButton` is 40×40 vs shared 48×44 (`toc_view.dart:734-750`); TOC Preview (`toc_view.dart:328-336`) pre-writes `pdf.path/name` before `openAt` overwrites.
+- **Done when:** Typing during section switch isn't clobbered and cursor preserved; lightbox step resets zoom; badges update without view switch; unknown group resets to All; remove clears selection; row buttons meet 44px; preview drops redundant pre-write. Locked by widget tests.
+
+### TODO-042 — Broaden CI, lint, smoke, and docs guard
+
+- **Intent:** I4.1, I4.3
+- **Priority:** P2
+- **Work:** CI (`.github/workflows/ci.yml:29-35`) runs only analyze+test+linux-debug (no release, no web, single runner, no smoke); `analysis_options.yaml` is default lints, excludes platform dirs, bare `flutter analyze`; `tool/smoke.sh:18` `shift` inside `for` ignores `--timeout 12` space form, timeout docs disagree (=12 vs =10), log deleted on success, 40-line tail, `grep failed` false-positives; `readme_test.dart:104-108` only guards lines starting with `flutter ` (inline release/web builds + smoke flags bypass).
+- **Done when:** CI covers release + web or documents why not; lint set tightened or exclusion justified; smoke space-form timeout works and log preserved on success; guard covers inline commands or known exceptions listed.
+
+### TODO-043 — Fill coverage and platform-doc gaps
+
+- **Intent:** I4.1, I3.3
+- **Priority:** P2
+- **Work:** No direct `geo`/`projection` tests (only indirect via sessions/views); `FakeLocations` duplicated in `package_integration_test.dart:32` instead of shared `fakes.dart`; `theme_test.dart` skips Fuchsia though `theme.dart:38-44` maps it; permission tables (`development.md:109-110`, `map-sources.md:130-132`) list Android+iOS only, omitting macOS present in both `Info.plist`s and README.
+- **Done when:** Direct geo/projection cases exist; location fakes shared; Fuchsia pinned or explicitly out of scope; permission tables include macOS.
+
+### TODO-048 — Harden smoke/boot/theme/docs-guard suites
+
+- **Intent:** I4.1
+- **Priority:** P2
+- **Work:** `app_smoke` mounts empty workspace only, switches via `selectView` not nav taps, no per-tool content/failure pill/resize cases; `boot_reopen` has no widgets and misses `supported:false`/corrupt-bytes/empty-between-boots/page-beyond-count/dual-failure; `theme_test` pins splash-factory only (no colors/type/contrast/widget conformance); `readme_test` misses prose/version/flag drift, non-`flutter ` commands, extra `development.md` commands, external URLs, section placement; timing hazards (`persistence` 330ms vs 250ms debounce, `tile_cache` 150ms vs 100ms gate, map `pump(100ms)` == spacing, lightbox 300ms decode, dialog 100/300ms magic numbers, zero `pumpAndSettle`) rely on wall-clock margins.
+- **Done when:** Smoke covers one per-tool content + failure pill; reopen covers corrupt/unsupported/dual-failure; theme pins tokens or scopes out; guard covers inline commands or lists exceptions; timing-sensitive tests use fake clocks/settle or document margins. Locked by expanded suites.
+
 ## P3 — Optional polish and open decisions
 
-TODO-015 closed with evidence below; TODO-023–TODO-027 are open polish from
-the frontend audit.
-
-### TODO-023 — Use one feedback channel for input errors
-
-- **Intent:** I2.2
-- **Priority:** P3
-- **Work:** An empty TOC title fires both a `SnackBar` and the status
-  sentence; every other tool uses the status line only. Drop the snackbar so
-  errors surface in exactly one place.
-- **Done when:** Declaring an empty section shows the status sentence and no
-  snackbar appears.
+TODO-015, TODO-023, TODO-025–TODO-027, TODO-039–TODO-041, TODO-044 closed
+with evidence below; TODO-024, TODO-038, TODO-042, TODO-043, TODO-048 are the
+open polish items.
 
 ### TODO-024 — Label the interface for screen readers
 
@@ -71,34 +177,74 @@ the frontend audit.
 - **Done when:** Each tool's main regions and actions announce a name; no
   behavior changes.
 
-### TODO-025 — Unify icon glyph sizes
-
-- **Intent:** I0.1
-- **Priority:** P3
-- **Work:** Glyphs drift between 13, 15, and 16 px across views (36 px
-  lightbox chevrons excepted). Standardize on 16 px.
-- **Done when:** No icon glyph outside the chevrons differs from 16 px.
-
-### TODO-026 — Floor small type at 12 px on narrow windows
-
-- **Intent:** I0.1
-- **Priority:** P3
-- **Work:** Leg distances, pills, and the save readout run at 10.5–11 px —
-  fine dense-desktop type, small on phones. Floor those styles at 12 px when
-  the window is narrow.
-- **Done when:** No text below 12 px renders under a 560 px window.
-
-### TODO-027 — Lift muted-text contrast
-
-- **Intent:** I0.1
-- **Priority:** P3
-- **Work:** `textMuted` (`#8B919C` on `#1D2026`) is borderline for small text.
-  Nudge it toward `#9AA0AB` and re-check the muted styles still read as
-  secondary.
-- **Done when:** Muted text meets 4.5:1 against surfaces and still looks
-  secondary on a screenshot.
-
 ## Closed (with evidence)
+
+### TODO-039 — Defer reopen work off first frame — DONE
+
+- **Intent:** I2.4, I2.1
+- **Priority:** P2
+- **Evidence:** `main()` now calls `runApp` first then `unawaited(reopenRemembered(...))`; `reopenRemembered` splits into `_reopenPdf`/`_reopenImages` run via `Future.wait` (independent sessions/fields) instead of sequential awaits. Same restore/gone-file semantics; existing `test/boot_reopen_test.dart` (5) passes unchanged. Full suite: 166/166, `flutter analyze` clean.
+
+### TODO-040 — Resolve docs that contradict closed work — DONE
+
+- **Intent:** I1.5, I2.4
+- **Priority:** P2
+- **Evidence:** README Known gaps drops TODO-003/004 bullets; `tools.md` quirk rewritten as implemented (`saved to disk` after restore), TODO-016 marked closed, TODO-013 marked closed decision; `map-sources.md` TODO-013 marked closed; `development.md` TODO-003 marked closed; pyramid gaps list replaced (TODO-007/016/017 removed, TODO-028–044 referenced). `readme_test.dart` 8/8 green.
+
+### TODO-041 — Fix test-count and bundle-size drift in docs — DONE
+
+- **Intent:** I1.5, I4.1
+- **Priority:** P2
+- **Evidence:** `tools_interaction` 34→36 (after 2 new TODO-044 tests), `workspace_store` 13→14, `boot_composition` 3→4, `overview` 125→158 feature, `development` nine→thirteen suites and 25M/10-07→33M/10-09 with PDFium note, testing table adds `tile_cache` (5), pyramid 164→166. Verified by `grep -c test(` (36 file, 166 total). `readme_test.dart` green.
+
+### TODO-044 — Fix place-label and heading-dedup data loss — DONE
+
+- **Intent:** I2.3, I1.1
+- **Priority:** P2
+- **Evidence:** `addPlace` re-top now adopts new non-empty label (clamped to 80); `importPdfHeadings` dedup includes `pdfName`. Two new tests in `test/tools_interaction_test.dart` (same headings from a.pdf vs b.pdf both import; re-save adopts New). Full suite: 166/166, `flutter analyze` clean.
+
+### TODO-023 — Use one feedback channel for input errors — DONE
+
+- **Intent:** I2.2
+- **Priority:** P3
+- **Evidence:** `_declare()` in `lib/ui/toc_view.dart` no longer shows a
+  `SnackBar`; the toolbar `StatusLine` (`toc-manager-status`) is the only
+  channel. `test/tools_interaction_test.dart` asserts an empty declare leaves
+  `tocItems` empty, sets the `heading title` status sentence, finds no
+  `SnackBar`, and finds the status line. Full suite: 164/164,
+  `flutter analyze` clean.
+
+### TODO-025 — Unify icon glyph sizes — DONE
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Evidence:** all small action glyphs set to 16 px (`toc`, `editor`,
+  `pdf`, `images`, `map`, `menu`, `widgets` menu-grid `iconSize` 20→16,
+  explicit 16 on previously unsized icons). Intentional display exceptions
+  kept: 56 px TOC empty-state, 26 px map pin, 36 px lightbox chevrons.
+  Verified with `rg "size:|iconSize:" lib/ui lib/app` — no 13/15/18 remains.
+  Full suite: 164/164, `flutter analyze` clean.
+
+### TODO-026 — Floor small type at 12 px on narrow windows — DONE
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Evidence:** raised every 10.5/11/11.5 px style (TOC chips/levels/hints,
+  editor badges/status, shell save-mode/view-label/report pill, map
+  attribution/readouts/scale-bar/leg/coords, images counts/names, `Eyebrow`)
+  to 12 px, so `rg "fontSize: 10.5|fontSize: 11" lib/` is clean and no text
+  below 12 px can render at any width. Full suite: 164/164,
+  `flutter analyze` clean.
+
+### TODO-027 — Lift muted-text contrast — DONE
+
+- **Intent:** I0.1
+- **Priority:** P3
+- **Evidence:** `WorkspaceColors.textMuted` `#8B919C` → `#9AA0AB` in
+  `lib/app/theme.dart`. Measured contrast: 5.15:1 → 6.21:1 on `#1D2026`
+  (4.79→5.77 on `#22262E`, 4.98→6.0 on `#1F232A`), so ≥4.5:1 on all
+  surfaces while still reading as secondary. Full suite: 164/164,
+  `flutter analyze` clean.
 
 ### TODO-018 — Restore press feedback on touch screens — DONE
 

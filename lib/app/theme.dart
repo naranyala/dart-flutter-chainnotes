@@ -7,7 +7,7 @@ abstract final class WorkspaceColors {
   static const Color surface = Color(0xFF1D2026);
   static const Color surfaceRaised = Color(0xFF22262E);
   static const Color text = Color(0xFFD6D9E0);
-  static const Color textMuted = Color(0xFF8B919C);
+  static const Color textMuted = Color(0xFF9AA0AB);
   static const Color accent = Color(0xFF8AB4F8);
   static const Color accentInk = Color(0xFF102027);
   static const Color danger = Color(0xFFF2A6A6);

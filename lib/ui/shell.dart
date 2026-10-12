@@ -264,7 +264,7 @@ class WorkspaceStatusBar extends StatelessWidget {
               pending ? 'Saving…' : controller.saveLabel,
               key: const Key('save-mode'),
               style: const TextStyle(
-                fontSize: 11.5,
+                fontSize: 12,
                 color: WorkspaceColors.textMuted,
               ),
             ),
@@ -282,7 +282,7 @@ class WorkspaceStatusBar extends StatelessWidget {
                 controller.view.toUpperCase(),
                 key: ValueKey(controller.view),
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   letterSpacing: 1.2,
                   color: WorkspaceColors.textMuted,
                 ),
@@ -323,7 +323,7 @@ class WorkspaceReportPill extends StatelessWidget {
                 text,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   color: WorkspaceColors.danger,
                 ),
               ),

@@ -87,11 +87,9 @@ headings without leaving the editor, and `Import…` / `Export…` move a draft
 through files.
 
 **Status line.** `N words · <save mode>`, where the mode is `saved to disk`,
-`auto-saved`, or `not saved` — plus `Line x, Col y` for the cursor.
-
-**A quirk worth knowing.** The label counts saves made *in this run*, so right
-after a restore it says `not saved` until you type again. Nothing failed;
-that's just how it counts: [TODO-004](../TODOS.md).
+`auto-saved`, or `not saved` — plus `Line x, Col y` for the cursor. A
+successful restore sets the mode to `saved to disk`, so the footer reads
+truthfully right after boot.
 
 ## PDF Reader
 
@@ -109,7 +107,8 @@ steps from **60% to 250%** (`renderZoom`), with the percentage in the toolbar.
 **Remembering.** The record keeps `path`, `name`, `page`, `zoom`, and recent
 paths — and a restart reopens the remembered document at the recorded page
 and zoom. A remembered file that is gone is forgotten with a sentence saying
-so. [TODO-016](../TODOS.md) tracked closing that gap.
+so. Reopening the remembered document on restart is implemented
+([TODO-016](../TODOS.md) closed).
 
 **Headings.** The outline (read by `lib/core/pdf/pdf_outline.dart`, which does
 its best with `/Outlines`, object streams, and the page tree) shows in a
@@ -202,4 +201,4 @@ crash. The section names match the fields in
 
 There's no Google Maps view. The `googleMap` section still loads and saves so
 a workspace from elsewhere doesn't lose anything, but nothing draws it.
-Whether to build that here is still open ([TODO-013](../TODOS.md)).
+By decision there is no viewer ([TODO-013](../TODOS.md) closed).

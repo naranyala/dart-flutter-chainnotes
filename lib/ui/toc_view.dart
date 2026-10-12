@@ -308,7 +308,7 @@ class _TocViewState extends State<TocView> {
           if (directory.isNotEmpty) ...[
             const Icon(
               Icons.folder_outlined,
-              size: 15,
+              size: 16,
               color: WorkspaceColors.textMuted,
             ),
             const SizedBox(width: 6),
@@ -427,7 +427,7 @@ class _TocViewState extends State<TocView> {
           const SizedBox(height: 4),
           const Text(
             'Each section becomes a row here and a draft in the Text Editor.',
-            style: TextStyle(fontSize: 11.5, color: WorkspaceColors.textMuted),
+            style: TextStyle(fontSize: 12, color: WorkspaceColors.textMuted),
           ),
         ],
       ),
@@ -436,10 +436,8 @@ class _TocViewState extends State<TocView> {
 
   void _declare() {
     controller.addTocItem(title: _titleController.text, level: _level);
-    if (controller.tocStatus.isError) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(controller.tocStatus.message)));
-    }
+    // Errors surface in the toolbar status line only (no SnackBar) so every
+    // tool reports input problems through exactly one channel (TODO-023).
     _titleController.clear();
     setState(() {});
   }
@@ -551,7 +549,7 @@ class _TocViewState extends State<TocView> {
                               child: Text(
                                 'H${clampLevel(item.level)}',
                                 style: const TextStyle(
-                                  fontSize: 10.5,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: WorkspaceColors.accent,
                                 ),
@@ -576,7 +574,7 @@ class _TocViewState extends State<TocView> {
                                   ? 'no draft yet'
                                   : '$words words · draft saved',
                               style: const TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 12,
                                 color: WorkspaceColors.textMuted,
                               ),
                             ),
@@ -610,7 +608,7 @@ class _TocViewState extends State<TocView> {
                             const Text(
                               'no links yet',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: WorkspaceColors.textMuted,
                               ),
                             ),
@@ -727,7 +725,7 @@ class _TocViewState extends State<TocView> {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 11, color: WorkspaceColors.accent),
+          style: const TextStyle(fontSize: 12, color: WorkspaceColors.accent),
         ),
       ),
     );
@@ -742,7 +740,7 @@ class _TocViewState extends State<TocView> {
     return IconButton(
       tooltip: tooltip,
       onPressed: enabled ? onTap : null,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 16),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 40, minHeight: 40),

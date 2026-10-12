@@ -215,7 +215,7 @@ class _EditorViewState extends State<EditorView> {
                         child: Text(
                           'H${clampLevel(item.level)}',
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: WorkspaceColors.accent,
                             fontWeight: FontWeight.w700,
                           ),
@@ -226,9 +226,9 @@ class _EditorViewState extends State<EditorView> {
                         '${countWords(item.content)} words · '
                         '${item.content.trim().isEmpty ? 'no draft yet' : 'draft saved'}',
                         style: const TextStyle(
-                            fontSize: 11.5, color: WorkspaceColors.textMuted),
+                            fontSize: 12, color: WorkspaceColors.textMuted),
                       ),
-                      trailing: const Icon(Icons.chevron_right, size: 18),
+                      trailing: const Icon(Icons.chevron_right, size: 16),
                       onTap: () => controller.selectTocItem(item),
                     ),
                   ),
@@ -276,7 +276,7 @@ class _EditorViewState extends State<EditorView> {
             child: Text(
               'H${clampLevel(active.level)}',
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: WorkspaceColors.accent,
               ),
@@ -340,7 +340,7 @@ class _EditorViewState extends State<EditorView> {
             key: const Key('document-status'),
             '${countWords(controller.editorContent)} words · ${controller.saveLabel}',
             style:
-                const TextStyle(fontSize: 11.5, color: WorkspaceColors.textMuted),
+                const TextStyle(fontSize: 12, color: WorkspaceColors.textMuted),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -354,7 +354,7 @@ class _EditorViewState extends State<EditorView> {
             key: const Key('cursor-position'),
             controller.editorCursorPosition,
             style: const TextStyle(
-                fontSize: 11.5, color: WorkspaceColors.textMuted),
+                fontSize: 12, color: WorkspaceColors.textMuted),
           ),
         ],
       ),

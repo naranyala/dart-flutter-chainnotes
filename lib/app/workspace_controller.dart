@@ -479,7 +479,9 @@ class WorkspaceController extends ChangeNotifier {
       final page = rawPage is num ? rawPage.toInt() : null;
       final normalizedPage = page == null ? null : (page < 1 ? 1 : page);
       final duplicate = tocItems.any((item) =>
-          item.title == title && item.links.pdfPage == normalizedPage);
+          item.title == title &&
+          item.links.pdfPage == normalizedPage &&
+          item.links.pdfName == pdfName);
       if (duplicate) {
         skipped += 1;
         continue;
@@ -506,8 +508,9 @@ class WorkspaceController extends ChangeNotifier {
 
   /* --- map places ----------------------------------------------------------- */
 
-  /// Add or re-top a saved place. Re-saving the same coordinate keeps the old
-  /// label and moves the entry to the top instead of duplicating it.
+  /// Add or re-top a saved place. Re-saving the same coordinate moves the
+  /// entry to the top and adopts the new non-empty label instead of
+  /// duplicating it.
   Place? addPlace({required double lat, required double lon, String? label}) {
     final normalized = normalizeLocation({'lat': lat, 'lon': lon, 'label': label ?? ''});
     if (normalized == null) return null;
@@ -515,6 +518,12 @@ class WorkspaceController extends ChangeNotifier {
         place.lat == normalized.lat && place.lon == normalized.lon);
     if (existingIndex >= 0) {
       final existing = map.places.removeAt(existingIndex);
+      final text = (label ?? '').trim();
+      if (text.isNotEmpty) {
+        existing.label = text.length > maxPlaceLabel
+            ? text.substring(0, maxPlaceLabel)
+            : text;
+      }
       map.places.insert(0, existing);
       touch();
       return existing;

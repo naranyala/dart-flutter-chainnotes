@@ -42,9 +42,9 @@ Run these from the project root.
 ### Where builds go
 
 ```text
-build/linux/x64/debug/bundle/chainnotes        # debug app and assets (126 M bundle, 2026-10-07)
-build/linux/x64/release/bundle/chainnotes       # release app and assets (25 M bundle, 2026-10-07)
-build/web/                                      # web release (41 M, 2026-10-07)
+build/linux/x64/debug/bundle/chainnotes        # debug app and assets (126 M bundle, 2026-10-09)
+build/linux/x64/release/bundle/chainnotes       # release app and assets (33 M bundle, was 25 M before PDFium, 2026-10-09)
+build/web/                                      # web release (41 M, 2026-10-09)
 build/                                          # ignored by git
 ```
 
@@ -59,7 +59,7 @@ lib/
   sessions/    per-tool state that isn't saved (pdf, image, map)
   ui/          views: shell, menu, toc, editor, pdf, images, map, widgets
   main.dart    startup: folders, boot cache, saving, runApp
-test/          nine suites (feature tests + docs guard)
+test/          thirteen feature suites plus docs guard (164 tests total)
 docs/          the guides you're reading
 PYRAMID-OF-INTENTS.md   the rules a change should respect
 TODOS.md                what's left, linked to those rules
@@ -109,9 +109,9 @@ user agent, and proxy/VPN notes are all there.
 Android manifest already has `INTERNET` plus coarse and fine location, and
 the iOS `Info.plist` has `NSLocationWhenInUseUsageDescription`.
 
-**You closed the app and lost a sentence.** Known issue: closing inside the
-250 ms save window can drop what you just typed.
-[TODO-003](../TODOS.md) tracks it.
+**You closed the app and lost a sentence.** Lifecycle flush plus
+dispose-flush is implemented, so a pending 250 ms debounce is written
+instead of dropped ([TODO-003](../TODOS.md) closed).
 
 ## Things we don't do on purpose
 
