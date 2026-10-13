@@ -191,6 +191,16 @@ class TocItem {
         'links': links.toJson(),
         'updatedAt': updatedAt,
       };
+
+  /// Deep copy: snapshots must not alias live state (TODO-030).
+  TocItem copy() => TocItem(
+        id: id,
+        title: title,
+        level: level,
+        content: content,
+        links: links.copy(),
+        updatedAt: updatedAt,
+      );
 }
 
 TocItem? normalizeTocItem(Object? raw) {
@@ -211,10 +221,15 @@ TocItem? normalizeTocItem(Object? raw) {
 
 List<TocItem> normalizeTocItems(Object? raw) {
   if (raw is! List) return [];
+  // First occurrence wins, like normalizePlaces: duplicate ids would make
+  // selection, removal, and link targets ambiguous (TODO-030).
+  final seen = <String>{};
   final items = <TocItem>[];
   for (final entry in raw) {
     final item = normalizeTocItem(entry);
-    if (item != null) items.add(item);
+    if (item == null || seen.contains(item.id)) continue;
+    seen.add(item.id);
+    items.add(item);
   }
   return items;
 }
@@ -254,6 +269,19 @@ class PdfSessionData {
         'zoom': zoom,
         'workspaceDirectory': workspaceDirectory,
       };
+
+  /// Deep copy: snapshots must not alias live state (TODO-030).
+  PdfSessionData copy() => PdfSessionData(
+        name: name,
+        path: path,
+        recentPaths: List<String>.of(recentPaths),
+        size: size,
+        url: url,
+        documentId: documentId,
+        page: page,
+        zoom: zoom,
+        workspaceDirectory: workspaceDirectory,
+      );
 }
 
 PdfSessionData normalizePdfSession(Object? raw) {
@@ -290,6 +318,14 @@ class ImageSessionData {
         'recentPaths': recentPaths,
         'selectedGroup': selectedGroup,
       };
+
+  /// Deep copy: snapshots must not alias live state (TODO-030).
+  ImageSessionData copy() => ImageSessionData(
+        directoryName: directoryName,
+        directoryPath: directoryPath,
+        recentPaths: List<String>.of(recentPaths),
+        selectedGroup: selectedGroup,
+      );
 }
 
 ImageSessionData normalizeImageSession(Object? raw) {
@@ -321,6 +357,15 @@ class Place {
   int createdAt;
 
   Location get location => Location(lat: lat, lon: lon, label: label);
+
+  /// Deep copy (TODO-030).
+  Place copy() => Place(
+        id: id,
+        label: label,
+        lat: lat,
+        lon: lon,
+        createdAt: createdAt,
+      );
 
   Map<String, Object?> toJson() => {
         'id': id,
@@ -387,6 +432,16 @@ class MapSessionData {
         'showGrid': showGrid,
         'showCursor': showCursor,
       };
+
+  /// Deep copy: snapshots must not alias live state (TODO-030).
+  MapSessionData copy() => MapSessionData(
+        places: [for (final place in places) place.copy()],
+        sidebarOpen: sidebarOpen,
+        filter: filter,
+        renderer: renderer,
+        showGrid: showGrid,
+        showCursor: showCursor,
+      );
 }
 
 MapSessionData normalizeMapSession(Object? raw) {
@@ -424,6 +479,14 @@ class GoogleMapSessionData {
         'showGrid': showGrid,
         'showCursor': showCursor,
       };
+
+  /// Deep copy: snapshots must not alias live state (TODO-030).
+  GoogleMapSessionData copy() => GoogleMapSessionData(
+        layer: layer,
+        renderer: renderer,
+        showGrid: showGrid,
+        showCursor: showCursor,
+      );
 }
 
 GoogleMapSessionData normalizeGoogleMapSession(Object? raw) {

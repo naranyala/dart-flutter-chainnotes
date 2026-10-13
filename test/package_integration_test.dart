@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
@@ -13,6 +14,7 @@ import 'package:chainnotes/app/workspace_controller.dart';
 import 'package:chainnotes/core/pdf/outline_pdf_writer.dart';
 import 'package:chainnotes/core/pdf/pdf_outline.dart';
 import 'package:chainnotes/core/workspace/workspace_models.dart';
+import 'package:chainnotes/core/workspace/workspace_persistence.dart';
 import 'package:chainnotes/sessions/image_session.dart';
 import 'package:chainnotes/sessions/map_session.dart';
 import 'package:chainnotes/sessions/pdf_backend.dart';
@@ -409,6 +411,68 @@ void main() {
     );
 
     test(
+      'a failed open leaves the session fully closed, not half on the old doc',
+      () async {
+        final controller = freshController();
+        addTearDown(controller.dispose);
+        final opener = FakePdfOpener(pages: 3);
+        final pdf = PdfSession(controller, opener: opener);
+        addTearDown(pdf.dispose);
+        final dir = Directory.systemTemp.createTempSync('chainnotes-pdfstale');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final file = File('${dir.path}${Platform.pathSeparator}a.pdf')
+          ..writeAsBytesSync([37, 80, 68, 70, 45]);
+        expect(await pdf.openAt(file.path), isTrue);
+        expect(pdf.isOpen, isTrue);
+        opener.throwOnOpen = true;
+        expect(await pdf.openAt('/tmp/chainnotes-bad.pdf'), isFalse);
+        expect(pdf.isOpen, isFalse);
+        expect(pdf.pageCount, 0);
+        expect(pdf.openPath, isNull);
+        expect(pdf.openName, isEmpty);
+        expect(pdf.headings, isEmpty);
+        expect(pdf.status.isError, isTrue);
+      },
+    );
+
+    test(
+      'render cache is keyed by page and pixel size',
+      () async {
+        final controller = freshController();
+        addTearDown(controller.dispose);
+        final opener = FakePdfOpener(
+          pages: 1,
+          pageBytes: Uint8List.fromList([1, 2, 3]),
+        );
+        final pdf = PdfSession(controller, opener: opener);
+        addTearDown(pdf.dispose);
+        final dir = Directory.systemTemp.createTempSync('chainnotes-pdfsize');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final file = File('${dir.path}${Platform.pathSeparator}a.pdf')
+          ..writeAsBytesSync([37, 80, 68, 70, 45]);
+        expect(await pdf.openAt(file.path), isTrue);
+        final doc = opener.lastDocument!;
+        expect(
+          await pdf.renderPage(1, pixelWidth: 100, pixelHeight: 100),
+          [1, 2, 3],
+        );
+        expect(doc.getPageCalls, 1);
+        // Same size hits the cache: no second render.
+        expect(
+          await pdf.renderPage(1, pixelWidth: 100, pixelHeight: 100),
+          [1, 2, 3],
+        );
+        expect(doc.getPageCalls, 1);
+        // A new size re-renders instead of stretching old bytes.
+        expect(
+          await pdf.renderPage(1, pixelWidth: 200, pixelHeight: 200),
+          [1, 2, 3],
+        );
+        expect(doc.getPageCalls, 2);
+      },
+    );
+
+    test(
       'an unsupported platform is refused before touching a renderer',
       () async {
         final controller = freshController();
@@ -448,6 +512,138 @@ void main() {
       expect(pdf.isOpen, isFalse);
       expect(pdf.status.isError, isTrue);
       expect(pdf.status.message, 'That file could not be opened as a PDF.');
+    });
+
+    testWidgets('opening a PDF lands without a scroll crash', (tester) async {
+      // Recorded page 2 with a fresh highlight: the open notify used to
+      // reach for the scroll position before the reader list mounted.
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.pdf.page = 2;
+      final pdf = PdfSession(controller, opener: FakePdfOpener(pages: 3));
+      addTearDown(pdf.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PdfView(controller: controller, pdf: pdf)),
+        ),
+      );
+      final dir = Directory.systemTemp.createTempSync('chainnotes-pdfopen');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}${Platform.pathSeparator}a.pdf')
+        ..writeAsBytesSync([37, 80, 68, 70, 45]);
+      await tester.runAsync(() => pdf.openAt(file.path));
+      await tester.pump();
+      expect(pdf.isOpen, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('scrolling the reader persists the page', (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final pdf = PdfSession(controller, opener: FakePdfOpener(pages: 3));
+      addTearDown(pdf.dispose);
+      // A save scheduled through the engine proves the scroll went through
+      // navigateToPage instead of a direct record write.
+      final scratch = Directory.systemTemp.createTempSync('chainnotes-pdfnav');
+      addTearDown(() => scratch.deleteSync(recursive: true));
+      final persistence = WorkspacePersistence(
+        bridge: WorkspaceStoreBridge(
+          cachePath: '${scratch.path}/cache.json',
+          durablePath: '${scratch.path}/durable.json',
+        ),
+        snapshot: controller.snapshot,
+        apply: controller.apply,
+        onChanged: () {},
+      );
+      controller.persistence = persistence;
+      addTearDown(persistence.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PdfView(controller: controller, pdf: pdf)),
+        ),
+      );
+      final dir = Directory.systemTemp.createTempSync('chainnotes-pdfscroll');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}${Platform.pathSeparator}a.pdf')
+        ..writeAsBytesSync([37, 80, 68, 70, 45]);
+      await tester.runAsync(() => pdf.openAt(file.path));
+      await tester.pump();
+      await tester.drag(find.byType(ListView), const Offset(0, -5000));
+      await tester.pump();
+      expect(controller.pdf.page, 3);
+      expect(pdf.status.message, contains('Page 3 of 3'));
+      expect(persistence.hasPendingSave, isTrue);
+      // Drain the debounce the scroll scheduled, so no timer is pending
+      // when the tree is disposed (same pattern as app_smoke_test.dart).
+      persistence.flush();
+    });
+
+    testWidgets('a status-only notify does not jump the scroll', (
+      tester,
+    ) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.pdf.page = 2;
+      final pdf = PdfSession(controller, opener: FakePdfOpener(pages: 3));
+      addTearDown(pdf.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PdfView(controller: controller, pdf: pdf)),
+        ),
+      );
+      final dir = Directory.systemTemp.createTempSync('chainnotes-pdfjump');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}${Platform.pathSeparator}a.pdf')
+        ..writeAsBytesSync([37, 80, 68, 70, 45]);
+      await tester.runAsync(() => pdf.openAt(file.path));
+      await tester.pump();
+      pdf.setStatus('Just a note.');
+      await tester.pump();
+      expect(find.byType(Scrollable), findsOneWidget);
+      expect(
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .pixels,
+        0.0,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('reopening a same-length document re-renders its tiles', (
+      tester,
+    ) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final opener = FakePdfOpener(pages: 3, docId: 'a');
+      final pdf = PdfSession(controller, opener: opener);
+      addTearDown(pdf.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PdfView(controller: controller, pdf: pdf)),
+        ),
+      );
+      final dir = Directory.systemTemp.createTempSync('chainnotes-pdfswap');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      for (final name in ['a.pdf', 'b.pdf']) {
+        File('${dir.path}${Platform.pathSeparator}$name')
+            .writeAsBytesSync([37, 80, 68, 70, 45]);
+      }
+      await tester.runAsync(
+        () => pdf.openAt('${dir.path}${Platform.pathSeparator}a.pdf'),
+      );
+      await tester.pump();
+      await tester.pump();
+      opener.docId = 'b';
+      await tester.runAsync(
+        () => pdf.openAt('${dir.path}${Platform.pathSeparator}b.pdf'),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(pdf.isOpen, isTrue);
+      expect(opener.lastDocument, isNotNull);
+      expect(opener.lastDocument!.getPageCalls, greaterThan(0));
+      expect(tester.takeException(), isNull);
     });
 
     test('renderers report support per platform', () {
@@ -575,6 +771,37 @@ void main() {
         images.status.message,
         'That folder contains no supported images.',
       );
+    });
+
+    test('a missing folder prunes the remembered entry', () async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final images = ImageSession(controller);
+      addTearDown(images.dispose);
+      const gone = '/tmp/chainnotes-gone-folder-031';
+      controller.rememberImageDirectory(gone);
+      expect(controller.images.recentPaths, contains(gone));
+      expect(await images.openAt(gone), isFalse);
+      expect(images.status.isError, isTrue);
+      expect(controller.images.recentPaths, isNot(contains(gone)));
+    });
+
+    test('an empty folder clears a previous grid instead of leaving it', () async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final images = ImageSession(controller);
+      addTearDown(images.dispose);
+      final full = Directory.systemTemp.createTempSync('chainnotes-full031');
+      addTearDown(() => full.deleteSync(recursive: true));
+      File('${full.path}/a.png').writeAsBytesSync(List.filled(16, 1));
+      expect(await images.openAt(full.path), isTrue);
+      expect(images.hasImages, isTrue);
+      final empty = Directory.systemTemp.createTempSync('chainnotes-empty031');
+      addTearDown(() => empty.deleteSync(recursive: true));
+      expect(await images.openAt(empty.path), isFalse);
+      expect(images.hasImages, isFalse);
+      expect(images.images, isEmpty);
+      expect(images.status.isError, isTrue);
     });
 
     test('subfolders become named groups', () async {

@@ -94,7 +94,7 @@ C code; the right is where that work happens now.
 | `loadWorkspace` / `saveWorkspace` | `WorkspacePersistence` over `WorkspaceStore` | `lib/core/workspace/workspace_persistence.dart`, `workspace_store.dart` |
 | `summarize` | `runSummarizeBridge` (library only, no UI caller) | `lib/core/metrics/summarize_bridge.dart` |
 | `openPdf` / `openPdfAt` | `PdfSession.openAt` | `lib/sessions/pdf_session.dart` |
-| `extractPdfToc` | `PdfSession.loadToc` via `parsePdfOutline` | `lib/sessions/pdf_session.dart`, `lib/core/pdf/pdf_outline.dart` |
+| `extractPdfToc` | `PdfSession.loadToc` via `extractPdfOutline` | `lib/sessions/pdf_session.dart`, `lib/core/pdf/pdf_outline.dart` |
 | `openImageDirectory` / `openImageDirectoryAt` | `ImageSession.openAt` | `lib/sessions/image_session.dart` |
 | `loadImageAt` | `Image.file` on the scanned path | `lib/ui/images_view.dart` |
 | `openTextFile` / `saveTextFile` | `FileService.readTextFile` / `writeTextFile` | `lib/app/services.dart` |

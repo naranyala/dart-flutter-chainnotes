@@ -51,7 +51,7 @@ PdfOutlineResult extractPdfOutline(Uint8List bytes) {
 
     final pageNumbers = reader.pageNumbers(catalogNumber);
     final headings = <PdfOutlineEntry>[];
-    _walk(reader, outlineNumber, 1, pageNumbers, headings, 0);
+    _walk(reader, outlineNumber, 1, pageNumbers, headings, 0, <int>{});
     if (headings.isEmpty) {
       return const PdfOutlineResult(
         headings: [],
@@ -84,8 +84,12 @@ void _walk(
   Map<int, int> pageNumbers,
   List<PdfOutlineEntry> out,
   int depth,
+  Set<int> visited,
 ) {
   if (out.length >= _maxOutlineEntries || depth > 32) return;
+  // Cycles (/First or /Next pointing back) must terminate: siblings share
+  // one depth budget but a repeated object ends the walk (TODO-029).
+  if (!visited.add(objectNumber)) return;
   final dict = reader.object(objectNumber);
   if (dict == null) return;
 
@@ -102,11 +106,13 @@ void _walk(
 
   final first = reader.indirectNumber(reader.dictValue(dict, '/First'));
   if (first != null) {
-    _walk(reader, first, level + 1, pageNumbers, out, depth + 1);
+    _walk(reader, first, level + 1, pageNumbers, out, depth + 1, visited);
   }
   final next = reader.indirectNumber(reader.dictValue(dict, '/Next'));
   if (next != null) {
-    _walk(reader, next, level, pageNumbers, out, depth + 1);
+    // Siblings live on the same outline level, so they share the depth
+    // budget: a flat list of 40 must all parse, not stop at ~32 (TODO-029).
+    _walk(reader, next, level, pageNumbers, out, depth, visited);
   }
 }
 
@@ -227,9 +233,66 @@ class _PdfObjectReader {
     return null;
   }
 
+  /// Leftmost occurrence of a dictionary key that is a real name token:
+  /// outside `(literal strings)` (with `\` escapes), and bounded so
+  /// `/Firstborn` or a value mentioning the key cannot match (TODO-029).
+  /// Hex strings need no tracking: `<...>` holds hex digits only, and `/`
+  /// never appears in one.
+  int _keyIndex(String dict, String key) {
+    var parenDepth = 0;
+    var i = 0;
+    while (i < dict.length) {
+      final code = dict.codeUnitAt(i);
+      if (parenDepth > 0 && code == 0x5c && i + 1 < dict.length) {
+        i += 2;
+        continue;
+      }
+      if (code == 0x28) {
+        parenDepth++;
+        i++;
+        continue;
+      }
+      if (code == 0x29 && parenDepth > 0) {
+        parenDepth--;
+        i++;
+        continue;
+      }
+      if (parenDepth == 0 &&
+          dict.startsWith(key, i) &&
+          // No before-boundary check: PDF names are self-delimiting, so
+          // compact dicts like `/Type/Outlines` must still match (as
+          // `indexOf` did). The literal-skipping above and the
+          // boundary-after check below carry the fix (TODO-029).
+          _boundaryAfter(dict, i + key.length)) {
+        return i;
+      }
+      i++;
+    }
+    return -1;
+  }
+
+  bool _boundaryAfter(String dict, int i) {
+    if (i >= dict.length) return true;
+    final after = dict.codeUnitAt(i);
+    return after == 0x20 ||
+        after == 0x09 ||
+        after == 0x0a ||
+        after == 0x0d ||
+        after == 0x0c ||
+        after == 0x2f ||
+        after == 0x3c ||
+        after == 0x5b ||
+        after == 0x28 ||
+        after == 0x29 ||
+        after == 0x3e ||
+        after == 0x5d;
+  }
+
   String? dictValue(String? dict, String key) {
     if (dict == null) return null;
-    final index = dict.indexOf(key);
+    // Match only outside literal strings: a key name inside a (Title)
+    // literal is text, not a reference (TODO-029).
+    final index = _keyIndex(dict, key);
     if (index < 0) return null;
     var cursor = index + key.length;
     while (cursor < dict.length && _isSpace(dict.codeUnitAt(cursor))) {
@@ -249,6 +312,13 @@ class _PdfObjectReader {
       final end = dict.indexOf('>>', cursor);
       return dict.substring(cursor, end < 0 ? dict.length : end + 2);
     }
+    // A bare `N G R` is an indirect reference, not a lone number: refs
+    // must survive intact or no outline or page lookup ever resolves
+    // (TODO-029). Two consecutive numbers only occur in refs and arrays
+    // (arrays take the `[` branch above), so extending here is safe.
+    final ref = RegExp(r'^(\d{1,10})\s+(\d{1,3})\s+R')
+        .firstMatch(dict.substring(cursor));
+    if (ref != null) return ref.group(0);
     var end = cursor;
     while (end < dict.length && !_isSpace(dict.codeUnitAt(end)) &&
         dict.codeUnitAt(end) != 0x2f &&
@@ -267,7 +337,9 @@ class _PdfObjectReader {
   }
 
   String? titleValue(String dict) {
-    final index = dict.indexOf('/Title');
+    // Same literal-awareness as dictValue: prose mentioning /Title must
+    // not shadow the real key (TODO-029).
+    final index = _keyIndex(dict, '/Title');
     if (index < 0) return null;
     var cursor = index + '/Title'.length;
     while (cursor < dict.length && _isSpace(dict.codeUnitAt(cursor))) {
@@ -316,7 +388,12 @@ class _PdfObjectReader {
         i++;
         continue;
       }
-      if (code == 0x28) depth++;
+      if (code == 0x28) {
+        depth++;
+        // The opening paren delimits the string; only nested parens are
+        // content (TODO-029).
+        if (depth == 1) continue;
+      }
       if (code == 0x29) {
         depth--;
         if (depth == 0) return buffer.toString();
@@ -333,8 +410,9 @@ class _PdfObjectReader {
     final rootsRef = indirectNumber(dictValue(catalog, '/Pages'));
     if (rootsRef == null) return mapping;
     var counter = 1;
+    final visited = <int>{};
     void visit(int number, int depth) {
-      if (depth > 64) return;
+      if (depth > 64 || !visited.add(number)) return;
       final dict = object(number);
       if (dict == null) return;
       if (RegExp(r'/Type\s*/Page\b').hasMatch(dict)) {
@@ -343,8 +421,11 @@ class _PdfObjectReader {
       }
       final kids = dictValue(dict, '/Kids');
       if (kids == null) return;
+      // A pure `N G R` names an intermediate array object holding the
+      // references; inline arrays scan directly (TODO-029).
+      final target = _resolveRefList(kids);
       for (final ref in RegExp(r'(\d{1,10})\s+\d{1,3}\s+R')
-          .allMatches(kids)) {
+          .allMatches(target)) {
         final kid = int.tryParse(ref.group(1)!);
         if (kid != null) visit(kid, depth + 1);
       }
@@ -354,6 +435,17 @@ class _PdfObjectReader {
     return mapping;
   }
 
+  /// Follows a bare indirect reference to the object body holding a
+  /// reference list; anything else scans as-is.
+  String _resolveRefList(String value) {
+    if (!RegExp(r'^\s*\d{1,10}\s+\d{1,3}\s+R\s*$').hasMatch(value)) {
+      return value;
+    }
+    final number = indirectNumber(value);
+    final body = number == null ? null : object(number);
+    return body ?? value;
+  }
+
   int? destinationPage(String dict, Map<int, int> pageNumbers) {
     var dest = dictValue(dict, '/Dest');
     if (dest == null) {
@@ -361,6 +453,15 @@ class _PdfObjectReader {
       if (action != null) dest = dictValue(action, '/D');
     }
     if (dest == null) return null;
+    // Explicit destinations name the page first: `/Dest [3 0 R /Fit]`.
+    // A bare `N G R` falls through to the indirect-number path (TODO-029).
+    final trimmed = dest.trimLeft();
+    if (trimmed.startsWith('[')) {
+      final match =
+          RegExp(r'(\d{1,10})\s+\d{1,3}\s+R').firstMatch(trimmed);
+      if (match == null) return null;
+      return pageNumbers[int.tryParse(match.group(1)!)];
+    }
     final ref = indirectNumber(dest);
     if (ref != null) return pageNumbers[ref];
     return null;

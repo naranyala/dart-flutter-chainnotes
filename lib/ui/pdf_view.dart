@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -41,7 +42,12 @@ class _PdfViewState extends State<PdfView> {
     _scroll.addListener(_onScroll);
     pdf.addListener(_onSessionChanged);
     controller.addListener(_onSessionChanged);
-    _currentPage = controller.pdf.page.clamp(1, 1);
+    // Start where the record says, clamped to the open document — never a
+    // constant 1 that a later notify must correct with a jump (TODO-028).
+    final maxPage = pdf.isOpen && pdf.pageCount > 0
+        ? pdf.pageCount
+        : controller.pdf.page;
+    _currentPage = controller.pdf.page.clamp(1, math.max(maxPage, 1));
   }
 
   @override
@@ -68,8 +74,14 @@ class _PdfViewState extends State<PdfView> {
     final index = _pageAtOffset(_scroll.offset);
     if (index != _currentPage) {
       _currentPage = index;
-      controller.pdf.page = index;
-      widget.pdf.navigateToPage(index);
+      // Persist through navigateToPage so the page is saved and the status
+      // follows; it early-returns when the record already agrees, in which
+      // case only the local highlight needs a rebuild (TODO-028).
+      if (controller.pdf.page != index) {
+        widget.pdf.navigateToPage(index);
+      } else {
+        setState(() {});
+      }
     }
   }
 
@@ -96,6 +108,10 @@ class _PdfViewState extends State<PdfView> {
   }
 
   void _scrollToPage(int page, {required bool animated}) {
+    // Notifies can arrive before the reader list mounts (e.g. an open that
+    // completes on the empty state); without clients there is nothing to
+    // move and position access would throw (TODO-028).
+    if (!_scroll.hasClients) return;
     final target = _offsetOf(page) + 16;
     final clamped =
         target.clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
@@ -110,6 +126,9 @@ class _PdfViewState extends State<PdfView> {
     }
   }
 
+  /// The single open path for the toolbar button and the empty-state
+  /// browse button: pick, open, sync the highlight, and settle the scroll
+  /// (TODO-028).
   Future<void> _openPdf() async {
     final path = await widget.files.chooseFile(
       extensions: const ['pdf'],
@@ -125,18 +144,12 @@ class _PdfViewState extends State<PdfView> {
     });
   }
 
-  Future<void> _openText() async {
-    final path = await widget.files.chooseFile(
-      extensions: const ['pdf'],
-      label: 'PDF',
-    );
-    if (path == null || !mounted) return;
-    await pdf.openAt(path);
-    if (mounted) setState(() {});
-  }
-
   void _attachPage() {
-    if (!pdf.isOpen) return;
+    if (!pdf.isOpen) {
+      pdf.setStatus('Open a PDF to attach its page.', error: true);
+      setState(() {});
+      return;
+    }
     final ok = controller.attachPdfPage(
       controller.pdf.page,
       pdf.openName,
@@ -147,6 +160,8 @@ class _PdfViewState extends State<PdfView> {
     } else if (controller.linkTarget == null) {
       pdf.setStatus('Select an outline item to attach this page to.',
           error: true);
+    } else {
+      pdf.setStatus('That page could not be attached.', error: true);
     }
     setState(() {});
   }
@@ -377,7 +392,9 @@ class _PdfViewState extends State<PdfView> {
           const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             isExpanded: true,
-            initialValue: controller.linkTargetId,
+            // Show the effective target (explicit choice or active section),
+            // matching what the Attach button will use (TODO-033).
+            initialValue: controller.linkTarget?.id,
             hint: const Text('Select outline item',
                 style: TextStyle(fontSize: 12.5)),
             items: [
@@ -506,6 +523,7 @@ class _PdfViewState extends State<PdfView> {
                       child: _PdfPage(
                         pdf: pdf,
                         page: page,
+                        document: controller.pdf.documentId,
                         pixelWidth: displayWidth * dpr,
                         pixelHeight: height * dpr,
                         displayWidth: displayWidth,
@@ -523,7 +541,8 @@ class _PdfViewState extends State<PdfView> {
   }
 
   void _goToPage(int page) {
-    controller.pdf.page = page;
+    // navigateToPage persists (clamped) and notifies; the scroll recenters
+    // here. No direct record write: it would defeat the guard (TODO-028).
     pdf.navigateToPage(page);
     _scrollToPage(page, animated: true);
     setState(() {});
@@ -573,7 +592,7 @@ class _PdfViewState extends State<PdfView> {
               ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: _openText,
+                onPressed: _openPdf,
                 child: const Text('Browse files'),
               ),
               if (remembered.isNotEmpty) ...[
@@ -621,6 +640,7 @@ class _PdfPage extends StatefulWidget {
   const _PdfPage({
     required this.pdf,
     required this.page,
+    required this.document,
     required this.pixelWidth,
     required this.pixelHeight,
     required this.displayWidth,
@@ -629,6 +649,10 @@ class _PdfPage extends StatefulWidget {
 
   final PdfSession pdf;
   final int page;
+
+  /// The open document's id: reopening a same-length document must refresh
+  /// the tile instead of showing the old document's bytes (TODO-028).
+  final String document;
   final double pixelWidth;
   final double pixelHeight;
   final double displayWidth;
@@ -654,7 +678,8 @@ class _PdfPageState extends State<_PdfPage> {
   @override
   void didUpdateWidget(covariant _PdfPage old) {
     super.didUpdateWidget(old);
-    if (old.pixelWidth != widget.pixelWidth ||
+    if (old.document != widget.document ||
+        old.pixelWidth != widget.pixelWidth ||
         old.pixelHeight != widget.pixelHeight) {
       _future = widget.pdf.renderPage(
         widget.page,

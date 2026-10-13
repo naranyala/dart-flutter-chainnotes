@@ -106,6 +106,9 @@ class ImageSession extends ChangeNotifier {
     setStatus('Scanning $path…');
     final directory = Directory(path);
     if (!directory.existsSync()) {
+      // Prune the dead remembered entry so it can't be tapped again;
+      // setStatus notifies, so the sentence appears on this frame.
+      controller.forgetImageDirectory(path);
       setStatus('That folder could not be opened.', error: true);
       return false;
     }
@@ -165,6 +168,14 @@ class ImageSession extends ChangeNotifier {
     walk(directory, '', 0);
 
     if (found.isEmpty) {
+      // Show this folder as explicitly empty instead of leaving the
+      // previous folder's grid on screen under the error.
+      images = const [];
+      groups = const [];
+      limited = false;
+      directoryName = _baseName(path);
+      directoryPath = path;
+      lightboxIndex = -1;
       setStatus('That folder contains no supported images.', error: true);
       notifyListeners();
       return false;
@@ -223,11 +234,19 @@ class ImageSession extends ChangeNotifier {
   bool attachCurrentToSection() {
     final list = visibleImages;
     if (lightboxIndex < 0 || lightboxIndex >= list.length) return false;
+    if (controller.linkTarget == null) {
+      setStatus('Select an outline item to attach this image to.',
+          error: true);
+      notifyListeners();
+      return false;
+    }
     final saved = controller.attachImages([list[lightboxIndex].path]);
     if (saved) {
       setStatus('Image attached to “${controller.linkTarget?.title}”.');
-      notifyListeners();
+    } else {
+      setStatus('That image could not be attached.', error: true);
     }
+    notifyListeners();
     return saved;
   }
 

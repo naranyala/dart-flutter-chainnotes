@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:http/testing.dart';
 
 import 'package:chainnotes/app/services.dart';
 import 'package:chainnotes/app/workspace_controller.dart';
+import 'package:chainnotes/core/geo/geo.dart';
 import 'package:chainnotes/core/map/tile_source.dart';
 import 'package:chainnotes/core/workspace/workspace_models.dart';
 import 'package:chainnotes/core/workspace/workspace_persistence.dart';
@@ -152,6 +154,40 @@ void main() {
       expect(controller.editorContent, 'hello world');
       expect(controller.activeTocItem!.content, 'hello world');
     });
+
+    testWidgets('the PDF chip jumps to the linked page', (tester) async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final pdf = PdfSession(
+        controller,
+        opener: FakePdfOpener(pages: 3),
+      );
+      addTearDown(pdf.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      controller.addTocItem(title: 'Source', level: 1);
+      controller.selectTocItem(controller.tocItems.single);
+      final dir = Directory.systemTemp.createTempSync('chainnotes-edchip');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/doc.pdf';
+      File(path).writeAsBytesSync([37, 80, 68, 70, 45, 10]);
+      // Real async file I/O deadlocks in a widget test's fake-async zone,
+      // so run the open on the real event loop.
+      await tester.runAsync(() => pdf.openAt(path));
+      controller.attachPdfPage(2, pdf.openName);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EditorView(controller: controller, pdf: pdf, map: map),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('PDF p.2'));
+      await tester.pump();
+      expect(controller.view, 'pdf');
+      expect(controller.pdf.page, 2);
+    });
   });
 
   group('Cross-tool links and transfers', () {
@@ -164,6 +200,72 @@ void main() {
       // while still binding the link on the item.
       controller.attachPdfPage(7, 'doc.pdf');
       expect(controller.tocItems.single.links.pdfPage, 7);
+    });
+
+    test('a snapshot is detached from later edits and vice versa', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'First', level: 1);
+      final snap = controller.snapshot();
+      controller.addTocItem(title: 'Second', level: 1);
+      controller.tocItems.first.title = 'Edited live';
+      controller.pdf.recentPaths.add('/tmp/late.pdf');
+      expect(snap.tocItems, hasLength(1));
+      expect(snap.tocItems.single.title, 'First');
+      expect(snap.pdf.recentPaths, isEmpty);
+      snap.tocItems.single.title = 'Edited snap';
+      expect(controller.tocItems.first.title, 'Edited live');
+    });
+
+    test('a crafted import cannot duplicate ids', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Live', level: 1);
+      final liveId = controller.tocItems.single.id;
+      final added = controller.importTocJson(jsonEncode({
+        'format': 'metrics-toc',
+        'version': 1,
+        'items': [
+          {'title': 'A', 'level': 1, 'id': 'dup'},
+          {'title': 'B', 'level': 1, 'id': 'dup'},
+          {'title': 'C', 'level': 1, 'id': liveId},
+        ],
+      }));
+      expect(added, 3);
+      final ids = controller.tocItems.map((item) => item.id).toList();
+      expect(ids.toSet(), hasLength(ids.length));
+    });
+
+    test('page 0 attaches as page 1 and survives a reload', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Source', level: 1);
+      controller.selectTocItem(controller.tocItems.single);
+      controller.attachPdfPage(0, 'doc.pdf');
+      expect(controller.tocItems.single.links.pdfPage, 1);
+      final reloaded = normalizeWorkspace(
+        jsonDecode(serializeWorkspace(controller.snapshot())),
+      );
+      expect(reloaded.tocItems.single.links.pdfPage, 1);
+    });
+
+    test('an attached location stores the normalized form', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      controller.addTocItem(title: 'Source', level: 1);
+      controller.selectTocItem(controller.tocItems.single);
+      controller.attachLocation(
+        const Location(lat: 48.8588445, lon: 2.2944813),
+      );
+      final stored = controller.tocItems.single.links.location!;
+      expect(stored.lat, 48.858845);
+      expect(stored.lon, 2.294481);
+      final reloaded = normalizeWorkspace(
+        jsonDecode(serializeWorkspace(controller.snapshot())),
+      );
+      final again = reloaded.tocItems.single.links.location!;
+      expect(again.lat, stored.lat);
+      expect(again.lon, stored.lon);
     });
 
     test('a non-outline import reports a sentence, not an exception', () {
@@ -601,6 +703,20 @@ void main() {
       expect(controller.tocItems.single.links.location, isNotNull);
     });
 
+    test('a failed attach reports instead of staying silent', () {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final map = MapSession(controller);
+      addTearDown(map.dispose);
+      // No persistence wired: attach saves fail (see comment above).
+      controller.addTocItem(title: 'Field trip', level: 1);
+      controller.setLinkTarget(controller.tocItems.single.id);
+      map.dropPin(1, 2);
+      expect(map.attachPinToSection(), isFalse);
+      expect(map.status.isError, isTrue);
+      expect(map.status.message, contains('could not be attached'));
+    });
+
     test('importing the same coordinates twice keeps one place', () {
       final controller = freshController();
       addTearDown(controller.dispose);
@@ -795,6 +911,21 @@ void main() {
         lightboxSwipeStep(dx: -200, zoomed: false, singlePointer: false),
         0,
       );
+    });
+
+    test('attaching an image without a target explains itself', () async {
+      final controller = freshController();
+      addTearDown(controller.dispose);
+      final session = ImageSession(controller);
+      addTearDown(session.dispose);
+      final dir = Directory.systemTemp.createTempSync('chainnotes-attachimg');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      File('${dir.path}/a.png').writeAsBytesSync(List.filled(16, 1));
+      expect(await session.openAt(dir.path), isTrue);
+      session.openLightbox(0);
+      expect(session.attachCurrentToSection(), isFalse);
+      expect(session.status.isError, isTrue);
+      expect(session.status.message, contains('Select an outline item'));
     });
 
     testWidgets('flinging the lightbox steps to the next image', (

@@ -193,7 +193,7 @@ changeable independently behind small contracts.
 ## Current state snapshot
 
 Verified against the tree and a full run on 2026-10-08 — `flutter analyze`
-(no issues), `flutter test` (164/164: 156 functional + 8 docs guard),
+(no issues), `flutter test` (189/189: 181 functional + 8 docs guard),
 `flutter build linux --debug`, `flutter build linux --release`,
 `flutter build web --release`, `tool/smoke.sh --build --timeout=10`
 (Smoke OK, exit 124 = stayed up) — rather than against these entries. Every
@@ -225,10 +225,11 @@ Already present and working:
   remembered PDF at its recorded page/zoom and the image folder at its
   recorded group; gone paths are forgotten with a sentence — **I2.1**.
   Locked by `test/boot_reopen_test.dart` (TODO-016 closed).
-- 166 tests: metrics (12), bridge (11), store (14), normalizer (14),
+- 189 tests: metrics (12), bridge (11), store (14), normalizer (15),
   persistence merge + modes (17), boot composition (4), tile gate + eviction
-  (9), tile cache (5), tool interactions (36), third-party seams (25),
-  shell smoke (5), boot reopen (5), theme (1), docs guard (8) — **I4.1**.
+  (9), tile cache (5), outline parser (6), tool interactions (43),
+  third-party seams (33), shell smoke (6), boot reopen (5), theme (1),
+  docs guard (8) — **I4.1**.
 - Third-party seams with fakes: `FakeFileService` picker flows (including
   cancellations), `LocationQuery` over `geolocator` (denied/disabled/forever/
   failing tested), `PdfOpener` over `pdfx` / `pdfrx` (per-platform gates,

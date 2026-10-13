@@ -5,7 +5,7 @@ could be wrong. Nothing below the smoke test needs a screen, a network, or a
 real file on disk.
 
 ```sh
-flutter test                                          # everything, 158 feature + 8 guard
+flutter test                                          # everything, 181 feature + 8 guard
 flutter test test/persistence_test.dart               # one suite
 flutter test --reporter expanded                      # one line per test
 flutter analyze                                       # should stay clean too
@@ -13,17 +13,18 @@ flutter analyze                                       # should stay clean too
 
 | Suite | Tests | What it checks |
 | --- | ---: | --- |
-| `test/workspace_test.dart` | 14 | Bad input becomes a safe record, and a good record round-trips |
+| `test/workspace_test.dart` | 15 | Bad input becomes a safe record, and a good record round-trips |
 | `test/persistence_test.dart` | 17 | Debounce timing, write order, boot merging, save labels, flush on close, and mode after restore |
 | `test/workspace_store_test.dart` | 14 | Atomic saves, the 4 MiB limit checked before reading, result codes |
 | `test/boot_composition_test.dart` | 4 | Startup wires in the *boot cache* — not a fresh snapshot |
 | `test/metrics_test.dart` | 12 | Welford engine: precision, and bad values never corrupt state |
 | `test/bridge_test.dart` | 11 | Request parsing, success shape, error codes and envelope |
 | `test/tile_policy_test.dart` | 9 | Tile limits (how many at once, spacing, backoff) and old-first disk cleanup |
-| `test/tools_interaction_test.dart` | 36 | Outline add/move/undo/filter, keyboard actions, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, attach errors, import reports, picker cancellations, marker targets, lightbox swipe, clear confirms, lightbox |
-| `test/package_integration_test.dart` | 25 | Pickers with fakes, location denied/disabled/forever/failing, PDF rendering and outline reading, open paths, real `pdfrx` render, file limits, naming, image scan limits |
+| `test/pdf_outline_test.dart` | 6 | Sibling walk, reference cycles, literal-trapped keys, page resolution |
+| `test/tools_interaction_test.dart` | 43 | Outline add/move/undo/filter, keyboard actions, editor syncing, PDF attach, outline import/export, places, place stepping, go-to-coordinates, save-centre, attach errors, import reports, picker cancellations, marker targets, lightbox swipe, clear confirms, lightbox |
+| `test/package_integration_test.dart` | 33 | Pickers with fakes, location denied/disabled/forever/failing, PDF rendering and outline reading, open paths, real `pdfrx` render, file limits, naming, image scan limits |
 | `test/tile_cache_test.dart` | 5 | Tile fetch, decode, memory/disk cache, misses |
-| `test/app_smoke_test.dart` | 5 | The window opens with the real footer, all six views render, the menu navbar spans the window, switches settle, back goes home, and the menu button goes home |
+| `test/app_smoke_test.dart` | 6 | The window opens with the real footer, all six views render, the menu navbar spans the window, switches settle, back goes home, back cancels edits, and the menu button goes home |
 | `test/boot_reopen_test.dart` | 5 | Restart reopens the remembered PDF/folder; gone paths are forgotten with a sentence |
 | `test/theme_test.dart` | 1 | Press feedback ripples on touch, stays flat on desktop |
 
@@ -95,6 +96,14 @@ request, a fresh cache serves it from disk with zero requests, and 404s and
 corrupt bytes are misses that are never remembered (the 404 retry waits out
 the request gate's spacing first).
 
+### Outline parser — `pdf_outline_test.dart`
+
+Synthetic PDFs (built as text, no renderer): a flat 40-sibling outline all
+parses, a self-referential outline terminates with one heading, key
+lookalikes inside `(literal strings)` don't shadow real keys, compact
+`<<…>>` dicts parse, and explicit `/Dest` arrays resolve to page numbers —
+so the outline reader is proven against the files it must actually read.
+
 ### Platform renderer gates — `package_integration_test.dart`
 
 `PdfxOpener`/`PdfrxOpener` report support per platform
@@ -111,8 +120,10 @@ views** — menu, outline, editor, PDF, images, map — making sure each renders
 without a Flutter error and nothing overflows. That overflow check earned its
 keep twice: it caught a `DropdownButtonFormField` that was too wide for its
 toolbar on the first run ([TODO-002](../TODOS.md)), and a status-bar `Row`
-nested in another `Row` that killed the first frame on device. The second
-asserts the menu navbar spans the full window width at 1600 px.
+nested in another `Row` that killed the first frame on device. The rest pin
+the settled switch timing, the menu navbar spanning the full window width at
+1600 px, the back button returning to the menu, back cancelling an inline
+edit before leaving the tool, and the status-bar menu-grid button.
 
 ## What isn't tested
 
@@ -133,7 +144,7 @@ README map or this folder's index drift from the code. It checks that
 - every Dart file under `lib/` and `test/` shows up in the map,
 - every guide linked from [`docs/README.md`](README.md) exists,
 - every command quoted in the root `README.md` is documented in
-  [development](development.md#the-commands).
+  [development](development.md#commands).
 
 So the three usual ways a doc goes wrong — a renamed file, a deleted file
 left in the map, a command that no longer exists — fail the suite instead of

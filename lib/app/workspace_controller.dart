@@ -133,27 +133,29 @@ class WorkspaceController extends ChangeNotifier {
 
   /* --- snapshot / apply ---------------------------------------------------- */
 
+  /// A detached deep copy: later edits must not mutate a pending payload,
+  /// and mutating the snapshot must not move live state (TODO-030).
   WorkspaceRecord snapshot() => WorkspaceRecord(
         savedAt: DateTime.now().millisecondsSinceEpoch,
         view: view,
-        tocItems: tocItems,
+        tocItems: [for (final item in tocItems) item.copy()],
         activeTocId: activeTocId,
         editorContent: editorContent,
-        pdf: pdf,
-        images: images,
-        map: map,
-        googleMap: googleMap,
+        pdf: pdf.copy(),
+        images: images.copy(),
+        map: map.copy(),
+        googleMap: googleMap.copy(),
       );
 
   void apply(WorkspaceRecord record) {
     view = record.view;
-    tocItems = record.tocItems;
+    tocItems = [for (final item in record.tocItems) item.copy()];
     activeTocId = record.activeTocId;
     editorContent = record.editorContent;
-    pdf = record.pdf;
-    images = record.images;
-    map = record.map;
-    googleMap = record.googleMap;
+    pdf = record.pdf.copy();
+    images = record.images.copy();
+    map = record.map.copy();
+    googleMap = record.googleMap.copy();
     notifyListeners();
   }
 
@@ -343,12 +345,15 @@ class WorkspaceController extends ChangeNotifier {
   bool attachPdfPage(int page, String name) {
     final target = linkTarget;
     if (target == null) return false;
-    target.links.pdfPage = page;
+    // Clamp like importPdfHeadings: page 0 must round-trip through the
+    // normalizer instead of degrading to null on reload (TODO-030).
+    final valid = page < 1 ? 1 : page;
+    target.links.pdfPage = valid;
     target.links.pdfName = name;
     target.updatedAt = DateTime.now().millisecondsSinceEpoch;
     final saved = _saveOutline();
     if (saved) {
-      tocStatus.set('Page $page attached to “${target.title}”.');
+      tocStatus.set('Page $valid attached to “${target.title}”.');
     }
     notifyListeners();
     return saved;
@@ -357,7 +362,11 @@ class WorkspaceController extends ChangeNotifier {
   bool attachLocation(Location location) {
     final target = linkTarget;
     if (target == null) return false;
-    target.links.location = location;
+    // Store the normalized form (rounded, label-clamped) so the record
+    // holds exactly what a reload produces (TODO-030).
+    final normalized = normalizeLocation(location.toJson());
+    if (normalized == null) return false;
+    target.links.location = normalized;
     target.updatedAt = DateTime.now().millisecondsSinceEpoch;
     final saved = _saveOutline();
     if (saved) {
@@ -440,13 +449,20 @@ class WorkspaceController extends ChangeNotifier {
     }
     final entries = parsed['items'];
     final imported = <TocItem>[];
+    // Rebuild ids that collide with live items or within the batch: a
+    // crafted export must not create ambiguous duplicates (TODO-030).
+    // normalizeTocItems already drops repeats inside the batch.
+    final knownIds = {for (final item in tocItems) item.id};
     if (entries is List) {
       for (final entry in entries) {
         final item = normalizeTocItem({
           'id': nextTocId(),
           if (entry is Map) ...entry,
         });
-        if (item != null) imported.add(item);
+        if (item == null) continue;
+        if (knownIds.contains(item.id)) item.id = nextTocId();
+        knownIds.add(item.id);
+        imported.add(item);
       }
     }
     if (imported.isEmpty) {

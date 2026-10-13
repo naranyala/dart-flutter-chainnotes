@@ -115,7 +115,7 @@ Imported data stays on your machine; it never touches the network:
 | --- | --- | --- |
 | `.csv` places file | `_parsePlacesCsv` in `lib/sessions/map_session.dart` | Needs a header row; duplicate ids dropped, 200-place cap |
 | GeoJSON places | `_parsePlacesGeoJson` | Points become places; same caps |
-| GeoJSON layer | `loadGeojson` in `MapSession` | Drawn over the tiles; `Clear` removes it |
+| GeoJSON layer | `addLayerFromText` in `MapSession` | Drawn over the tiles; `Clear` removes it |
 
 Distances are great-circle (`lib/core/geo/geo.dart`), bearings are true north
 with compass points, and both show in the readout on the map.
@@ -130,5 +130,6 @@ it never throws.
 | --- | --- |
 | Android | `INTERNET`, `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION` in the manifest |
 | iOS | `NSLocationWhenInUseUsageDescription` in `Info.plist` |
+| macOS | `NSLocationWhenInUseUsageDescription` in `Info.plist` |
 
 Location stays on the device: nothing is saved unless you save it as a place.

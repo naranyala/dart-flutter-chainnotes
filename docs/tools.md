@@ -42,7 +42,8 @@ This is the spine of the workspace — the outline everything else points at.
 
 **Adding.** Type a title, pick a level (1–3), and add it. Empty titles are
 turned away with a status message instead of being quietly dropped, and ids
-come from `createTocItem`, which keeps them unique.
+come from `nextTocId`, which keeps them unique (imports rebuild ids that
+would collide).
 
 **Moving and removing.** Items move up and down, and removing one remembers it
 so `Undo remove` can bring it back — `lastRemoved` is saved, so undo works
@@ -124,8 +125,10 @@ the editor's `PDF p.<n>` button jumps back to it.
 A folder browser, not a file manager.
 
 **Picking.** `Choose directory` opens a folder; the scan groups files by their
-parent folder name and remembers the path. Two limits keep big folders sane —
-`maxBrowserImages` (500) and a per-folder cap — and hitting one shows
+parent folder name and remembers the path. Bounded so big folders can't stall
+the app — at most 500 files, 16 MiB per file, 96 MiB total, 8 levels deep
+(`scanMaxFiles`, `scanMaxFileSize`, `scanMaxTotalSize`, `scanMaxDepth` in
+`lib/sessions/image_session.dart`) — and hitting a cap shows
 `N images (the scan reached its limit)` instead of quietly cutting off.
 
 **Looking around.** Folder groups with counts on the side, a thumbnail grid,
@@ -144,8 +147,9 @@ layers on top. Tile hosting, caching, and licensing are in
 [map sources](map-sources.md); this is how it feels to use.
 
 **Moving around.** Drag to pan, zoom in fixed steps (levels 1–19) with the
-wheel, pinch, or `−` / `+`. You can rotate with a bearing readout in the
-corner (`045° NE · 1.2 km · 18/19`).
+wheel, pinch, or `−` / `+`. A bearing readout in the corner shows the
+direction and distance between the pin and the selected place
+(`045° NE · 1.2 km · 0.7 mi`).
 
 **Look.** One basemap with a tint — `none`, `grayscale`, `dark`, `sepia`,
 `vivid`, `faded` — plus a `Grid` lined up to the current zoom. The renderer

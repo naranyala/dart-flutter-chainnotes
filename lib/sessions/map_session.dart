@@ -41,6 +41,20 @@ class MapSession extends ChangeNotifier {
   String? selectedPlaceId;
   bool locateBusy = false;
 
+  /// Transient place-rename target (never persisted). Lives here — not in
+  /// the view — so the shell back button can cancel it (TODO-033).
+  String? renamingPlaceId;
+
+  void startRename(String placeId) {
+    renamingPlaceId = placeId;
+    notifyListeners();
+  }
+
+  void cancelRename() {
+    renamingPlaceId = null;
+    notifyListeners();
+  }
+
   final List<GeoLayer> layers = <GeoLayer>[];
 
   int flyRequest = 0;
@@ -256,6 +270,8 @@ class MapSession extends ChangeNotifier {
     final saved = controller.attachLocation(current);
     if (saved) {
       setStatus('Location attached to “${controller.linkTarget!.title}”.');
+    } else {
+      setStatus('That location could not be attached.', error: true);
     }
     notifyListeners();
     return saved;
@@ -272,6 +288,8 @@ class MapSession extends ChangeNotifier {
     );
     if (saved) {
       setStatus('“${place.label}” attached to “${controller.linkTarget!.title}”.');
+    } else {
+      setStatus('That place could not be attached.', error: true);
     }
     notifyListeners();
     return saved;

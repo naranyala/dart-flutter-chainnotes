@@ -70,6 +70,16 @@ void main() {
       expect(paths.contains('/docs/gen-${maxRecentPaths + 4}.pdf'), isFalse);
     });
 
+    test('duplicate TOC ids keep the first occurrence', () {
+      final items = normalizeTocItems([
+        {'title': 'Alpha', 'level': 1, 'id': 'same'},
+        {'title': 'Beta', 'level': 1, 'id': 'same'},
+        {'title': 'Gamma', 'level': 1, 'id': 'other'},
+      ]);
+      expect(items.map((item) => item.title).toList(), ['Alpha', 'Gamma']);
+      expect(items.map((item) => item.id).toSet(), hasLength(2));
+    });
+
     test('a corrupt path list degrades to empty', () {
       for (final value in [null, 'not-a-list', 42, {'a': 1}]) {
         final workspace = normalizeWorkspace({

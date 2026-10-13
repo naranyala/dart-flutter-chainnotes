@@ -246,6 +246,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       home: WorkspaceShell(
         controller: controller,
         footer: _footer,
+        mapSession: widget.map,
         views: [
           MenuView(
             controller: controller,
@@ -259,7 +260,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             images: widget.images,
             map: widget.map,
           ),
-          EditorView(controller: controller),
+          EditorView(
+              controller: controller, pdf: widget.pdf, map: widget.map),
           PdfView(controller: controller, pdf: widget.pdf),
           ImagesView(controller: controller, images: widget.images),
           MapView(

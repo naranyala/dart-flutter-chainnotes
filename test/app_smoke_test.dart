@@ -207,6 +207,66 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('back cancels inline edits before leaving the tool', (
+    tester,
+  ) async {
+    final controller = WorkspaceController(boot: normalizeWorkspace(null));
+    addTearDown(controller.dispose);
+    final pdf = PdfSession(controller);
+    addTearDown(pdf.dispose);
+    final images = ImageSession(controller);
+    addTearDown(images.dispose);
+    final map = MapSession(controller);
+    addTearDown(map.dispose);
+    final tiles = TileCache(
+      cacheDirectory: Directory.systemTemp.createTempSync('chainnotes-backedit'),
+      client: MockClient((_) async => http.Response('gone', 404)),
+    );
+    addTearDown(tiles.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildWorkspaceTheme(),
+        home: WorkspaceShell(
+          controller: controller,
+          footer: const SizedBox(height: 10),
+          mapSession: map,
+          // Menu + TOC only: EditorView's item ListTile needs a Scaffold
+          // Material ancestor that the bare shell doesn't provide, so it
+          // stays out of this harness (pre-existing debug assertion).
+          views: [
+            MenuView(
+              controller: controller,
+              pdf: pdf,
+              images: images,
+              map: map,
+            ),
+            TocView(controller: controller, pdf: pdf, images: images, map: map),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    controller.selectView('toc');
+    await tester.pump(const Duration(milliseconds: 300));
+    controller.addTocItem(title: 'Rename me', level: 1);
+    controller.startTocEdit(controller.tocItems.single);
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(controller.editingTocId, isNull);
+    expect(controller.view, 'toc');
+    map.startRename('place-1');
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(map.renamingPlaceId, isNull);
+    expect(controller.view, 'toc');
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(controller.view, 'menu');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the menu navbar spans the full window width', (tester) async {
     // A centered 1180px cap once left wide windows with big margins; the
     // navbar must always stretch edge to edge.

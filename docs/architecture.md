@@ -146,7 +146,10 @@ What each tool actually does is in [the tools guide](tools.md).
    view.
 4. `startPersistence` hydrates: the durable copy wins unless it's strictly
    older than the boot copy.
-5. Sessions are created and `runApp` takes over.
+5. Sessions are created and `runApp` shows the first frame immediately; the
+   remembered PDF and image folder then reopen in parallel afterwards
+   (`reopenRemembered` via `Future.wait`), so a big folder can't hold the
+   window hostage. Gone paths are forgotten with a sentence.
 6. Anything you do — adding a heading, opening a PDF, dropping a pin — goes
    from a view to a session or the controller.
 7. The controller notes the interaction, schedules a save, and notifies.

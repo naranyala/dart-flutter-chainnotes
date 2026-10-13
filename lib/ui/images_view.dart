@@ -653,7 +653,9 @@ class _LightboxState extends State<_Lightbox> {
                       Expanded(
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
-                          initialValue: widget.controller.linkTargetId,
+                          // Show the effective target (explicit choice or
+                          // active section), matching Attach (TODO-033).
+                          initialValue: widget.controller.linkTarget?.id,
                           hint: const Text(
                             'Select outline item',
                             style: TextStyle(fontSize: 12.5),

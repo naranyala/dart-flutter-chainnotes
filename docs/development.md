@@ -15,7 +15,7 @@ have actually been built.
 **Built here:** Linux debug + release and Web release. Windows, macOS,
 Android, and iOS were not built here (Windows needs a Windows machine,
 macOS/iOS need Xcode, Android needs the SDK). Treat anything unbuilt as
-unproven; see [testing](testing.md#what-is-not-tested).
+unproven; see [testing](testing.md#what-isnt-tested).
 
 ```sh
 flutter pub get
@@ -29,7 +29,7 @@ Run these from the project root.
 | --- | --- |
 | `flutter pub get` | Fetch packages (`path_provider`, `file_selector`, `http`, `pdf`, `pdfx`, `pdfrx`, `geolocator`) |
 | `flutter analyze` | Static analysis with `analysis_options.yaml`. **Should come back clean** |
-| `flutter test` | Run everything (156 feature tests, 164 total with the docs guard) |
+| `flutter test` | Run everything (181 feature tests, 189 total with the docs guard) |
 | `flutter test test/bridge_test.dart` | Run a single suite while you're working |
 | `flutter test --reporter expanded` | Same run, one line per test |
 | `flutter run -d linux` | Run on your machine with hot reload |
@@ -59,7 +59,7 @@ lib/
   sessions/    per-tool state that isn't saved (pdf, image, map)
   ui/          views: shell, menu, toc, editor, pdf, images, map, widgets
   main.dart    startup: folders, boot cache, saving, runApp
-test/          thirteen feature suites plus docs guard (164 tests total)
+test/          fourteen feature suites plus docs guard (189 tests total)
 docs/          the guides you're reading
 PYRAMID-OF-INTENTS.md   the rules a change should respect
 TODOS.md                what's left, linked to those rules
@@ -101,13 +101,14 @@ are installed.
 Linux, and `pdfrx` (PDFium via native assets) on Linux — see the PDF note in
 the README. There's no native code of ours in the build.
 
-**Tiles don't load.** See [map sources](map-sources.md#troubleshooting): host,
+**Tiles don't load.** See [map sources](map-sources.md#when-tiles-misbehave): host,
 user agent, and proxy/VPN notes are all there.
 
 **Locate does nothing.** `MapSession.locate()` asks for permission through
 `geolocator`; saying no shows up in the status line, it doesn't throw. The
 Android manifest already has `INTERNET` plus coarse and fine location, and
-the iOS `Info.plist` has `NSLocationWhenInUseUsageDescription`.
+the iOS and macOS `Info.plist` files have
+`NSLocationWhenInUseUsageDescription`.
 
 **You closed the app and lost a sentence.** Lifecycle flush plus
 dispose-flush is implemented, so a pending 250 ms debounce is written

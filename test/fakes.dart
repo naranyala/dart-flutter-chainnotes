@@ -71,11 +71,20 @@ class FakePdfOpener implements PdfOpener {
     this.supported = true,
     this.pages = 2,
     this.throwOnOpen = false,
+    this.docId = 'fake-id',
+    this.pageBytes,
   });
 
   bool supported;
   int pages;
   bool throwOnOpen;
+  String docId;
+
+  /// Fixed render bytes for every page (null keeps the failure path).
+  Uint8List? pageBytes;
+
+  /// The most recently opened document, for call-count assertions.
+  FakeEngineDocument? lastDocument;
 
   @override
   bool get isSupported => supported;
@@ -86,27 +95,50 @@ class FakePdfOpener implements PdfOpener {
   @override
   Future<PdfEngineDocument> openFile(String path) async {
     if (throwOnOpen) throw const FileSystemException('unreadable');
-    return FakeEngineDocument(pageCount: pages);
+    return lastDocument = FakeEngineDocument(
+      pageCount: pages,
+      docId: docId,
+      pageBytes: pageBytes,
+    );
   }
 }
 
 class FakeEngineDocument implements PdfEngineDocument {
-  FakeEngineDocument({required this.pageCount});
+  FakeEngineDocument({
+    required this.pageCount,
+    this.docId = 'fake-id',
+    this.pageBytes,
+  });
 
   @override
   final int pageCount;
 
   @override
-  String get id => 'fake-id';
+  String get id => docId;
+
+  final String docId;
+
+  /// Fixed render bytes handed to every page (null keeps the failure path).
+  final Uint8List? pageBytes;
+
+  /// Counts `getPage` calls so tests can tell a re-render from a cache hit.
+  int getPageCalls = 0;
 
   @override
-  Future<PdfEnginePage?> getPage(int pageNumber) async => FakeEnginePage();
+  Future<PdfEnginePage?> getPage(int pageNumber) async {
+    getPageCalls++;
+    return FakeEnginePage(bytes: pageBytes);
+  }
 
   @override
   Future<void> close() async {}
 }
-
 class FakeEnginePage implements PdfEnginePage {
+  FakeEnginePage({this.bytes});
+
+  /// Render result (null keeps the render-failure path).
+  final Uint8List? bytes;
+
   @override
   double get width => 100;
 
@@ -117,7 +149,8 @@ class FakeEnginePage implements PdfEnginePage {
   Future<Uint8List?> renderBytes({
     required double width,
     required double height,
-  }) async => null;
+  }) async =>
+      bytes;
 
   @override
   Future<void> close() async {}

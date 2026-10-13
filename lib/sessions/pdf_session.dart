@@ -35,7 +35,10 @@ class PdfSession extends ChangeNotifier {
   bool headingsFromCache = false;
 
   double renderZoom = 1.0;
-  final Map<int, Uint8List> _pageCache = <int, Uint8List>{};
+  // Keyed by page + rounded pixel size: a window resize must not keep
+  // showing the old-resolution bytes stretched (TODO-028). Bounded below.
+  final Map<(int, int, int), Uint8List> _pageCache =
+      <(int, int, int), Uint8List>{};
   final Map<int, double> _aspects = <int, double>{};
   int _renderToken = 0;
 
@@ -104,6 +107,17 @@ class PdfSession extends ChangeNotifier {
       return true;
     } catch (error) {
       controller.forgetPdfPath(path);
+      // Leave the session fully closed: the previous document was already
+      // released above, so keeping its page count, path, cache, and
+      // headings would describe a document that is not open (TODO-028).
+      pageCount = 0;
+      openPath = null;
+      openName = '';
+      openSize = 0;
+      _pageCache.clear();
+      _aspects.clear();
+      headings = const [];
+      headingsMessage = 'Contents are extracted when a document opens.';
       setStatus('That file could not be opened as a PDF.', error: true);
       notifyListeners();
       return false;
@@ -165,7 +179,8 @@ class PdfSession extends ChangeNotifier {
     required double pixelWidth,
     required double pixelHeight,
   }) {
-    final cached = _pageCache[pageNumber];
+    final key = (pageNumber, pixelWidth.round(), pixelHeight.round());
+    final cached = _pageCache[key];
     if (cached != null) return Future.value(cached);
     final document = _document;
     if (document == null) return Future.value(null);
@@ -182,7 +197,7 @@ class PdfSession extends ChangeNotifier {
         await page.close();
         if (token != _renderToken) return null;
         if (data == null) return null;
-        _rememberPage(pageNumber, data);
+        _rememberPage(pageNumber, pixelWidth, pixelHeight, data);
         notifyListeners();
         return data;
       } catch (_) {
@@ -193,8 +208,9 @@ class PdfSession extends ChangeNotifier {
 
   static const int _maxCachedPages = 24;
 
-  void _rememberPage(int pageNumber, Uint8List data) {
-    _pageCache[pageNumber] = data;
+  void _rememberPage(int pageNumber, double pixelWidth, double pixelHeight,
+      Uint8List data) {
+    _pageCache[(pageNumber, pixelWidth.round(), pixelHeight.round())] = data;
     if (_pageCache.length > _maxCachedPages) {
       final oldest = _pageCache.keys.first;
       _pageCache.remove(oldest);

@@ -15,49 +15,11 @@ Priority levels:
 
 ## P0 — Make the documented product work end to end
 
-### TODO-028 — Fix PDF reader page-state loss and scroll crash
-
-- **Intent:** I2.1, I2.3, I3.1
-- **Priority:** P0
-- **Work:** `_onScroll`/`_goToPage` (`lib/ui/pdf_view.dart:66-74,525-529`) write `controller.pdf.page` directly so `navigateToPage` (`lib/sessions/pdf_session.dart:143`) early-returns and skips `touch()`+`setStatus` (page never persists, badge/highlight stale); `_scrollToPage` (`:98-111`) reads `position` with no `hasClients` guard (crash on open-from-empty); `_openPdf` vs `_openText` (`:113-136`) diverge (empty-state open leaves stale `_currentPage`/offset); `_currentPage = page.clamp(1,1)` (`:44`) is always 1; `_PdfPage.didUpdateWidget` + `renderPage` cache (`pdf_view.dart:654-665`, `pdf_session.dart:163-169`) show stale doc/resolution; failed open (`pdf_session.dart:80-110`) leaves stale `pageCount/openPath/cache`.
-- **Done when:** Scroll/Prev/Next persists page + updates status; open-from-empty never throws; single open path; remembered page restored; switching docs with equal page counts shows the new doc; failed open clears stale state. Locked by widget/unit tests.
-
-### TODO-029 — Fix PDF outline parser truncation and DoS fan-out
-
-- **Intent:** I3.2, I4.1
-- **Priority:** P0
-- **Work:** `lib/core/pdf/pdf_outline.dart:80-111` recurses both `/First` and `/Next` with `depth+1` (flat 40-sibling outline truncated at ~32 despite 2000-entry cap) and no `visited` set (`/First=X /Next=X` → ~2³² visits → hang/OOM; same in `pageNumbers():336-351`); `dictValue (:230-260)` uses substring `indexOf` so `/Title (see /First notes)` mis-parses.
-- **Done when:** 40-sibling flat outline fully parses; self-referential outline returns promptly without hang; `dictValue` ignores keys inside literal strings. Locked by parser unit tests.
-
-### TODO-030 — Fix snapshot aliasing, duplicate TOC ids, attach round-trip loss
-
-- **Intent:** I1.3, I3.1, I3.2
-- **Priority:** P0
-- **Work:** `WorkspaceController.snapshot()/apply() (:136-158)` alias collections by reference (pending payload mutates); `normalizeTocItems` (`workspace_models.dart:212-220`) has no id dedup unlike `normalizePlaces`, and import (`workspace_controller.dart:444-449`, comment `:395`) lets crafted `id` overwrite `nextTocId()` → duplicate ids; `attachPdfPage (:343-355)` stores raw int and `attachLocation (:357-368)` stores un-normalized `Location` while `normalizeLinks` rejects `<=0`/out-of-range → `attachPdfPage(0)` persists `0`, restart → null.
-- **Done when:** Snapshot is a deep copy; crafted duplicate-id import dedups; `attachPdfPage(0)` round-trips to the same value after normalize; invalid attach rejected up front. Locked by unit tests.
+TODO-028–TODO-030 closed with evidence below.
 
 ## P1 — Make the workspace dependable
 
-### TODO-031 — Fix image open failures leaving stale grids
-
-- **Intent:** I2.2, I2.1
-- **Priority:** P1
-- **Work:** `ImageSession.openAt` non-existent path (`lib/sessions/image_session.dart:104-111`) sets error without `notifyListeners()` and never `forgetImageDirectory` (unlike `PdfSession.openAt` + `main.dart:94-98`); empty-folder path (`:167-171`) returns false without clearing `images/groups`, so browse-A → browse-empty-B keeps showing A under an error.
-- **Done when:** Bad-folder open notifies + prunes remembered entry; empty-folder open clears grid or shows explicit empty, never stale A. Locked by session tests.
-
-### TODO-032 — Surface attach failures instead of silent no-ops
-
-- **Intent:** I2.2, I1.1
-- **Priority:** P1
-- **Work:** `attachPin/PlaceToSection` (`lib/sessions/map_session.dart:256-261,273-276`) notify with no status when `attachLocation` returns false; `_attachPage` (`lib/ui/pdf_view.dart:138-152`) returns silently when `!isOpen` and sets no PDF-side status on save-error; `attachCurrentToSection` (`lib/sessions/image_session.dart:223-232`) sets status only on success.
-- **Done when:** Every attach failure path sets a status sentence in the tool where the button was pressed. Locked by widget tests.
-
-### TODO-033 — Reconcile link-target fallback, editor chips, back behavior
-
-- **Intent:** I1.1, I2.3, I2.2
-- **Priority:** P1
-- **Work:** `linkTarget` getter (`lib/app/workspace_controller.dart:103-108`) falls back to `activeTocItem` while all three attach dropdowns (`pdf_view.dart:370-380`, `images_view.dart:654-690`, `map_view.dart:474-510`) display `linkTargetId` and buttons test `linkTarget==null` (dropdown says none, Attach still enabled); editor PDF/Location chips (`lib/ui/editor_view.dart:295-304`) only `selectView` instead of `navigateToPage/openLightbox/flyTo` like TOC chips; system back (`lib/ui/shell.dart:90-96`) jumps to menu even mid-rename/TOC-edit (`map_view.dart:1336-1340`, `toc_view.dart:644-648`).
-- **Done when:** Dropdown display, button enablement, and attach target agree; editor chips navigate to the linked page/place; back cancels inline edit before leaving the tool. Locked by widget tests.
+TODO-031–TODO-033 closed with evidence below.
 
 ### TODO-034 — Fix tile cache LRU, UI-thread IO, backoff, dateline keys
 
@@ -156,14 +118,21 @@ TODO-018–TODO-022 (frontend interaction polish) closed with evidence below.
 
 - **Intent:** I4.1
 - **Priority:** P2
-- **Work:** `app_smoke` mounts empty workspace only, switches via `selectView` not nav taps, no per-tool content/failure pill/resize cases; `boot_reopen` has no widgets and misses `supported:false`/corrupt-bytes/empty-between-boots/page-beyond-count/dual-failure; `theme_test` pins splash-factory only (no colors/type/contrast/widget conformance); `readme_test` misses prose/version/flag drift, non-`flutter ` commands, extra `development.md` commands, external URLs, section placement; timing hazards (`persistence` 330ms vs 250ms debounce, `tile_cache` 150ms vs 100ms gate, map `pump(100ms)` == spacing, lightbox 300ms decode, dialog 100/300ms magic numbers, zero `pumpAndSettle`) rely on wall-clock margins.
-- **Done when:** Smoke covers one per-tool content + failure pill; reopen covers corrupt/unsupported/dual-failure; theme pins tokens or scopes out; guard covers inline commands or lists exceptions; timing-sensitive tests use fake clocks/settle or document margins. Locked by expanded suites.
+- **Work:** `app_smoke` mounts empty workspace only, switches via `selectView` not nav taps, no per-tool content/failure pill/resize cases; `boot_reopen` has no widgets and misses `supported:false`/corrupt-bytes/empty-between-boots/page-beyond-count/dual-failure; `theme_test` pins splash-factory only (no colors/type/contrast/widget conformance); `readme_test` misses prose/version/flag drift, non-`flutter ` commands, extra `development.md` commands, external URLs, section placement; timing hazards (`persistence` 330ms vs 250ms debounce, `tile_cache` 150ms vs 100ms gate, map `pump(100ms)` == spacing, lightbox 300ms decode, dialog 100/300ms magic numbers, zero `pumpAndSettle`) rely on wall-clock margins; widget tests doing real async I/O (e.g. `PdfSession.openAt` in the chip test) deadlock in the fake-async zone unless wrapped in `tester.runAsync` — no test or doc states this rule.
+- **Done when:** Smoke covers one per-tool content + failure pill; reopen covers corrupt/unsupported/dual-failure; theme pins tokens or scopes out; guard covers inline commands or lists exceptions; timing-sensitive tests use fake clocks/settle or document margins; async-I/O widget tests use `runAsync` (and `docs/testing.md` says so). Locked by expanded suites.
+
+### TODO-049 — Fix editor ListTile without a Material ancestor
+
+- **Intent:** I2.3, I4.1
+- **Priority:** P2
+- **Work:** `EditorView` renders outline rows as bare `ListTile` inside the card `Container` (`lib/ui/editor_view.dart:206-234`). Pumping the bare `WorkspaceShell` with a TOC item throws the framework's "ListTile background color or ink splashes may be invisible" assertion (found via the TODO-033 back-cancel test, which had to drop `EditorView` from its view list to pass). In release the assertion strips and ink splashes paint invisibly; in debug it blocks any widget test that mounts the editor with items outside a `Scaffold`.
+- **Done when:** Pumping the bare shell with a TOC item throws no framework assertion (wrap the list in an explicit `Material` or replace `ListTile` with a custom row); ink ripples remain visible on touch platforms. Locked by restoring `EditorView` to the back-cancel smoke test's view list.
 
 ## P3 — Optional polish and open decisions
 
 TODO-015, TODO-023, TODO-025–TODO-027, TODO-039–TODO-041, TODO-044 closed
-with evidence below; TODO-024, TODO-038, TODO-042, TODO-043, TODO-048 are the
-open polish items.
+with evidence below; TODO-024, TODO-038, TODO-042, TODO-043, TODO-048,
+TODO-049 are the open polish items.
 
 ### TODO-024 — Label the interface for screen readers
 
@@ -178,6 +147,42 @@ open polish items.
   behavior changes.
 
 ## Closed (with evidence)
+
+### TODO-028 — Fix PDF reader page-state loss and scroll crash — DONE
+
+- **Intent:** I2.1, I2.3, I3.1
+- **Priority:** P0
+- **Evidence:** `_onScroll`/`_goToPage` persist only through `navigateToPage` (direct record writes removed); `_scrollToPage` guards `hasClients`; `_openText` merged into `_openPdf` (single open path); init clamps to the open page count; `_PdfPage` takes the document id and refreshes on doc change; `renderPage` cache keys page+pixel size; failed opens reset to fully closed. Six new tests (failed-open reset, size-keyed cache, scroll persists incl. `hasPendingSave`, no-crash open, no-jump on status notify, doc-switch re-render via `getPageCalls`). Full suite: 189/189, `flutter analyze` clean.
+
+### TODO-029 — Fix PDF outline parser truncation and DoS fan-out — DONE
+
+- **Intent:** I3.2, I4.1
+- **Priority:** P0
+- **Evidence:** Siblings share the depth budget, both walks carry a `visited` set, keys match only outside literals with boundary checks (compact `/Type/Outlines` still parses), `dictValue` returns full `N G R` refs (previously truncated to `N`, so outlines never resolved), `titleValue` drops the opening paren, explicit `/Dest` arrays and indirect `/Kids` arrays resolve. New `test/pdf_outline_test.dart` (6 tests: 40 siblings, cycle, two literal traps, compact dicts, page numbers `One@1,Two@2`). Full suite: 189/189, `flutter analyze` clean.
+
+### TODO-030 — Fix snapshot aliasing, duplicate TOC ids, attach round-trip — DONE
+
+- **Intent:** I1.3, I3.1, I3.2
+- **Priority:** P0
+- **Evidence:** New `copy()` on `TocItem`/`Place`/session-data classes; `snapshot()` and `apply()` deep-copy both directions; `normalizeTocItems` dedups by id and imports rebuild colliding ids; `attachPdfPage` clamps to ≥1 and `attachLocation` stores the normalized form. Five new tests (snapshot isolation both directions, crafted-id import, page-0 round-trip, location normalization round-trip, toc dedup). Full suite: 189/189, `flutter analyze` clean.
+
+### TODO-031 — Fix image open failures leaving stale grids — DONE
+
+- **Intent:** I2.2, I2.1
+- **Priority:** P1
+- **Evidence:** `ImageSession.openAt` bad-folder path now calls `controller.forgetImageDirectory(path)` (status via `setStatus` already notifies); empty-folder path now resets to an explicitly empty grid (`images/groups` cleared, folder name kept) instead of leaving the previous folder's grid. Two new tests in `test/package_integration_test.dart` (missing folder prunes the remembered entry; empty folder clears a previous grid). Full suite: 172/172, `flutter analyze` clean.
+
+### TODO-032 — Surface attach failures instead of silent no-ops — DONE
+
+- **Intent:** I2.2, I1.1
+- **Priority:** P1
+- **Evidence:** `attachPin/PlaceToSection` set `could not be attached` on save failure; PDF `_attachPage` reports `Open a PDF to attach its page` when closed and `could not be attached` on save failure; `attachCurrentToSection` reports `Select an outline item…` with no target and `could not be attached` on save failure. Two new tests in `test/tools_interaction_test.dart` (failed map attach reports; image attach without target explains itself). Full suite: 172/172, `flutter analyze` clean.
+
+### TODO-033 — Reconcile link-target fallback, editor chips, back behavior — DONE
+
+- **Intent:** I1.1, I2.3, I2.2
+- **Priority:** P1
+- **Evidence:** All three attach dropdowns show `linkTarget?.id` (the effective target) instead of `linkTargetId`; `EditorView` takes optional `pdf`/`map` sessions (wired in `main.dart`) and its chips `navigateToPage`/`flyTo` like the TOC chips, falling back to view-switch without sessions; place-rename flag moved from view-local state to `MapSession.renamingPlaceId` and `WorkspaceShell` takes an optional `mapSession` so back cancels TOC edit then place rename before leaving the tool. Two new tests (`PDF chip jumps to the linked page`, also locking `tester.runAsync` for real async I/O in widget tests; `back cancels inline edits before leaving the tool`). Full suite: 172/172, `flutter analyze` clean.
 
 ### TODO-039 — Defer reopen work off first frame — DONE
 

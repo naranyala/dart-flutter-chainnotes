@@ -81,7 +81,7 @@ More concretely:
 
 ## Where things stand
 
-Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 164/164,
+Checked on 2026-10-08 — `flutter analyze` clean, `flutter test` 189/189,
 `flutter build linux --debug`, `--release`, and `flutter build web --release`
 all pass. The full story with reasons is in the
 [current state snapshot](../PYRAMID-OF-INTENTS.md#current-state-snapshot).
@@ -94,7 +94,7 @@ What works:
   saving with a flush on hide/close, Welford metrics, the bridge format,
   map projection, bounded tile fetching, a PDF outline reader, and an
   outline-to-PDF writer.
-- 158 feature tests plus 8 docs tests, including widget tests and fakes for
+- 181 feature tests plus 8 docs tests, including widget tests and fakes for
   pickers, location, and PDF opening that run without a device.
 
 Things worth knowing before you build on it:

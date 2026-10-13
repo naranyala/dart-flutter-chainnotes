@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../app/workspace_controller.dart';
 import '../core/workspace/workspace_persistence.dart';
+import '../sessions/map_session.dart';
 import 'widgets.dart';
 
 /// The application shell: every tool stays mounted in one `Stack` (the
@@ -29,9 +30,15 @@ class WorkspaceShell extends StatefulWidget {
     required this.controller,
     required this.views,
     required this.footer,
+    this.mapSession,
   });
 
   final WorkspaceController controller;
+
+  /// Optional live map session so the system back button can cancel a
+  /// place rename instead of leaving the tool (TODO-033). Absent in
+  /// older tests, where back keeps its previous behavior.
+  final MapSession? mapSession;
 
   /// One widget per tool, in `shellOrder`. Instances must stay in the same
   /// positions across rebuilds — the transition keeps each pane's `State`
@@ -90,9 +97,20 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
         return PopScope(
           // On phones the system back button goes back to the menu instead
           // of leaving the app, so a stray back press never loses context.
+          // Inline edits cancel first: a back press with a TOC row or a
+          // place rename open dismisses the edit, not the tool (TODO-033).
           canPop: onMenu,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && !onMenu) controller.selectView('menu');
+            if (didPop) return;
+            if (controller.editingTocId != null) {
+              controller.cancelTocEdit();
+              return;
+            }
+            if (widget.mapSession?.renamingPlaceId != null) {
+              widget.mapSession!.cancelRename();
+              return;
+            }
+            if (!onMenu) controller.selectView('menu');
           },
           child: Scaffold(
             backgroundColor: WorkspaceColors.background,

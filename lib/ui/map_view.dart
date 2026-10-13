@@ -81,7 +81,6 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   final TextEditingController _renameController = TextEditingController();
   final TextEditingController _latController = TextEditingController();
   final TextEditingController _lonController = TextEditingController();
-  String? _renamingPlaceId;
 
   Size _size = Size.zero;
   Offset? _cursor;
@@ -471,7 +470,9 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
           SizedBox(
             width: 200,
             child: DropdownButtonFormField<String?>(
-              initialValue: controller.linkTargetId,
+              // Show the effective target (explicit choice or active
+              // section), matching what Attach will use (TODO-033).
+              initialValue: controller.linkTarget?.id,
               hint: const Text('Attach to…', style: TextStyle(fontSize: 12.5)),
               isExpanded: true,
               items: [
@@ -1223,7 +1224,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
         session.pin!.lat == place.lat &&
         session.pin!.lon == place.lon;
     final selected = place.id == session.selectedPlaceId;
-    final renaming = _renamingPlaceId == place.id;
+    final renaming = session.renamingPlaceId == place.id;
     final previous = index > 0 ? controller.map.places[index - 1] : null;
     final leg = previous == null
         ? null
@@ -1278,7 +1279,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                   child: const Text('Save'),
                 ),
                 TextButton(
-                  onPressed: () => setState(() => _renamingPlaceId = null),
+                  onPressed: () => setState(() => session.cancelRename()),
                   child: const Text('Cancel'),
                 ),
               ],
@@ -1334,7 +1335,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   onPressed: () {
-                    _renamingPlaceId = place.id;
+                    session.startRename(place.id);
                     _renameController.text = place.label;
                     setState(() {});
                   },
@@ -1357,7 +1358,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
 
   void _commitRename(Place place) {
     controller.renamePlace(place, _renameController.text);
-    _renamingPlaceId = null;
+    session.cancelRename();
     setState(() {});
   }
 }

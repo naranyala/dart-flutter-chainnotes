@@ -4,6 +4,8 @@ import '../app/services.dart';
 import '../app/theme.dart';
 import '../app/workspace_controller.dart';
 import '../core/workspace/workspace_models.dart';
+import '../sessions/map_session.dart';
+import '../sessions/pdf_session.dart';
 import 'widgets.dart' as w;
 
 /// The Text Editor: one draft buffer bound to the active outline item, with
@@ -13,10 +15,17 @@ class EditorView extends StatefulWidget {
     super.key,
     required this.controller,
     this.files = const FileService(),
+    this.pdf,
+    this.map,
   });
 
   final WorkspaceController controller;
   final FileService files;
+
+  /// Optional live sessions for chip navigation; when absent the chips only
+  /// switch views, preserving the old behavior in tests (TODO-033).
+  final PdfSession? pdf;
+  final MapSession? map;
 
   @override
   State<EditorView> createState() => _EditorViewState();
@@ -119,6 +128,27 @@ class _EditorViewState extends State<EditorView> {
   void _goTo(TocItem? item) {
     if (item == null) return;
     controller.selectTocItem(item);
+  }
+
+  /// Jump to the linked PDF page like the TOC chips do: switch views, then
+  /// navigate when the open document matches (TODO-033).
+  void _openLinkedPdf(ItemLinks links) {
+    final page = links.pdfPage;
+    controller.selectView('pdf');
+    final session = widget.pdf;
+    if (page == null || session == null || !session.isOpen) return;
+    final name = links.pdfName;
+    if (name.isEmpty || session.openName == name) {
+      session.navigateToPage(page);
+    }
+  }
+
+  /// Fly to the linked location like the TOC chips do (TODO-033).
+  void _openLinkedLocation(ItemLinks links) {
+    final location = links.location;
+    controller.selectView('map');
+    if (location == null) return;
+    widget.map?.flyTo(location.lat, location.lon);
   }
 
   @override
@@ -295,12 +325,12 @@ class _EditorViewState extends State<EditorView> {
           if (links.pdfPage != null)
             w.ToolbarButton(
               label: 'PDF p.${links.pdfPage}',
-              onPressed: () => controller.selectView('pdf'),
+              onPressed: () => _openLinkedPdf(links),
             ),
           if (links.location != null)
             w.ToolbarButton(
               label: 'Location',
-              onPressed: () => controller.selectView('map'),
+              onPressed: () => _openLinkedLocation(links),
             ),
           w.ToolbarButton(
             label: '‹ Prev',

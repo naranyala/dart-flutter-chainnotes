@@ -46,10 +46,10 @@ flutter run -d linux
 ```
 
 `flutter analyze` should come back clean and `flutter test` should pass —
-right now that's **158 feature tests across thirteen suites (166 total with the
+right now that's **181 feature tests across fourteen suites (189 total with the
 docs guard)**.
 Checked on 2026-10-08 with Flutter 3.47.5 (stable), Dart 3.13.4: analyze
-clean, 166/166 tests, `flutter build linux --debug` works. For setup steps,
+clean, 189/189 tests, `flutter build linux --debug` works. For setup steps,
 the full command list, and where builds land, see
 [`docs/development.md`](docs/development.md).
 
@@ -102,7 +102,8 @@ lib/main.dart      composition root: boot cache → hydrate → sessions → she
   PDF pages, and the map stay put when you switch. Switching plays a 200 ms
   crossfade with a short slide in the menu direction (jump cuts under reduced
   motion). Sidebars collapse to a top panel on narrow windows, and the system
-  back button returns to the menu instead of leaving the app.
+  back button cancels an inline edit first (a TOC rename, a place rename) and
+  otherwise returns to the menu instead of leaving the app.
 * **A restart restores the record and reopens what it remembers** — last
   view, outline, drafts, each tool's session, plus the PDF at its recorded
   page/zoom and the image folder at its recorded group. A remembered file
@@ -134,7 +135,7 @@ lib/core/metrics/metrics_engine.dart  Welford engine, population variance
 lib/core/metrics/summarize_bridge.dart  Request parser, success payload,
                               error vocabulary and envelope
 lib/core/map/projection.dart  Web-Mercator project/unproject, zoom clamping
-lib/core/map/tile_source.dart TileCache: hosts, user agent, memory LRU, disk cache
+lib/core/map/tile_source.dart TileCache: hosts, user agent, memory and disk cache
 lib/core/map/tile_policy.dart Request gate (concurrency, spacing, backoff),
                               disk eviction picker
 lib/core/pdf/pdf_outline.dart Best-effort /Outlines parser (ObjStm, page tree)
@@ -162,16 +163,17 @@ lib/ui/map_view.dart          Tile canvas, filters, grid, places, layers
 lib/ui/widgets.dart           Shared toolbar/status/eyebrow vocabulary
 
 --- tests ---------------------------------------------------------------
-test/workspace_test.dart          Schema normalization, clamps, helpers (14)
+test/workspace_test.dart          Schema normalization, clamps, dedup, helpers (15)
 test/persistence_test.dart        Debounce, write order, merge, save modes (17)
 test/workspace_store_test.dart    Atomic store, size cap, result codes, parentOf (14)
 test/boot_composition_test.dart   The composition root wiring, no-store hydrate (4)
 test/metrics_test.dart            Engine precision and rejected values (12)
 test/bridge_test.dart             Protocol parser, envelope, codes (11)
 test/tile_policy_test.dart        Request gate, eviction, cache constants (9)
-test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, picker cancels, swipe, confirms, lightbox (36)
-test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render, file/image limits (25)
-test/app_smoke_test.dart          Shell, real footer, navbar, back button, settled switches (5)
+test/pdf_outline_test.dart        Outline walk, cycles, literal keys, pages (6)
+test/tools_interaction_test.dart  TOC, editor, links, places, map stepping, picker cancels, swipe, confirms, lightbox (43)
+test/package_integration_test.dart  Pickers, locate, pdf seams, real pdfrx render, file/image limits (33)
+test/app_smoke_test.dart          Shell, real footer, navbar, back button, settled switches (6)
 test/readme_test.dart             Keeps this map, the docs index, and the
                                   README's commands in step with the tree
 test/fakes.dart                   Shared fakes: scripted file pickers
@@ -194,15 +196,18 @@ TODOS.md                       The backlog, every item linked to an intent
 
 ## Known gaps
 
-Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
+What's still open lives in [`TODOS.md`](./TODOS.md), highest priority first —
+if it's not there, it's either done or a deliberate decision. Two items that
+look unfinished fall in the second camp, written down so nobody re-litigates
+them:
 
-* The release app builds and first launch is timed (see Platforms above).
-* The store flushes but doesn't `fsync` the file or its folder, so losing
-  power can drop the last save even after `ok` ([TODO-009](./TODOS.md)).
-  Crashing mid-write is safe (you get the old or the new file, never half of
-  one).
-* The metrics engine and bridge code have no button in the UI that calls them
-  ([TODO-011](./TODOS.md)).
+* Power loss can drop the last save even after `ok`: the store flushes but
+  never `fsync`s the file or its folder (`dart:io` exposes neither), so the
+  documented guarantee is crash-safe, not power-loss-safe ([TODO-009](./TODOS.md)
+  closed as documented).
+* The metrics engine and bridge code have no button in the UI that calls them —
+  portable library code with no production caller, by decision
+  ([TODO-011](./TODOS.md) closed).
 
 ## Notes
 
@@ -216,9 +221,9 @@ Things that aren't finished yet, each tracked in [`TODOS.md`](./TODOS.md):
 * PDF pages render with `pdfx` on Android/iOS/macOS/Windows and with `pdfrx`
   (PDFium) on Linux, both through the `PdfOpener` seam
   (`lib/sessions/pdf_backend.dart`), which picks the renderer for the running
-  platform. The outline parser (`lib/core/pdf/pdf_outline.dart`) is plain Dart
-  and works everywhere, but `pdfx` exposes no outline API, so headings come
-  from it and fall back to a readable message when they can't be read.
+  platform. Headings come from the pure-Dart outline parser
+  (`lib/core/pdf/pdf_outline.dart`), which works everywhere — `pdfx` exposes
+  no outline API — and fall back to a readable message when they can't be read.
 * Platforms: Linux is what gets tested (debug + release); Web release builds
   too. Windows, macOS, Android, and iOS folders exist but weren't built here.
   Measured 2026-10-09: `build/linux/x64/release/bundle` 33 M (was 25 M before
